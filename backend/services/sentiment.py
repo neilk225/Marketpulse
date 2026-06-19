@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import httpx
 
@@ -85,7 +86,7 @@ async def score_headlines(
                 ),
             },
         ],
-        "max_tokens": 2000,
+        "max_tokens": 4096,
         "temperature": 0.1,
     }
     try:
@@ -108,7 +109,12 @@ async def score_headlines(
         body = r.json()
         raw = body["choices"][0]["message"]["content"]
         model_used = body.get("model") or PRIMARY_MODEL
-        clean = raw.strip().removeprefix("```json").removesuffix("```").strip()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("OpenRouter response shape unexpected for %s: %s", symbol, exc)
+        raise SentimentUnavailable(str(exc)) from exc
+
+    clean = raw.strip().removeprefix("```json").removesuffix("```").strip()
+    try:
         parsed = json.loads(clean)
         if not isinstance(parsed, dict):
             raise ValueError("model did not return a JSON object")
@@ -117,10 +123,46 @@ async def score_headlines(
             raise ValueError("model response missing 'headlines' array")
         summary = str(parsed.get("summary") or "").strip()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("OpenRouter parse failed for %s: %s", symbol, exc)
-        raise SentimentUnavailable(str(exc)) from exc
+        # Most failures are truncation (max_tokens) leaving the JSON unterminated.
+        # Salvage whatever complete headline objects we can rather than 503-ing.
+        salvaged = _salvage(clean)
+        if salvaged is None:
+            logger.warning("OpenRouter parse failed for %s: %s", symbol, exc)
+            raise SentimentUnavailable(str(exc)) from exc
+        logger.warning(
+            "OpenRouter JSON for %s was malformed (%s); salvaged %d headlines",
+            symbol,
+            exc,
+            len(salvaged["headlines"]),
+        )
+        scored = salvaged["headlines"]
+        summary = salvaged["summary"]
 
     return _sanitize(scored), model_used, summary
+
+
+def _salvage(raw: str) -> dict | None:
+    """Recover usable data from malformed/truncated model JSON.
+
+    The headline objects are flat (no nested braces), so each complete ``{...}``
+    can be parsed individually; a truncated trailing object simply won't match
+    and is dropped. The summary is extracted separately. Returns None if nothing
+    usable is found."""
+    headlines: list[dict] = []
+    for m in re.finditer(r"\{[^{}]*\}", raw):
+        try:
+            obj = json.loads(m.group(0))
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(obj, dict) and obj.get("title"):
+            headlines.append(obj)
+    if not headlines:
+        return None
+    summary = ""
+    sm = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+    if sm:
+        summary = sm.group(1).strip()
+    return {"headlines": headlines, "summary": summary}
 
 
 _VALID_SENTIMENTS = {"positive", "negative", "neutral"}

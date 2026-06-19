@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import AsyncSessionLocal, init_db
-from routers import search, ticker
+from routers import movers, search, ticker
 from services.detection import load_known_crypto_symbols
 
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +44,7 @@ app.add_middleware(
 
 app.include_router(search.router)
 app.include_router(ticker.router)
+app.include_router(movers.router)
 
 
 @app.get("/health")

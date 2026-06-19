@@ -6,10 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import ErrorState from "@/components/ErrorState";
 import HeadlineList from "@/components/HeadlineList";
 import { TickerSkeleton } from "@/components/LoadingSkeleton";
+import RecentTickers from "@/components/RecentTickers";
+import SearchBar from "@/components/SearchBar";
 import SentimentBreakdown from "@/components/SentimentBreakdown";
 import SentimentGauge from "@/components/SentimentGauge";
 import StaleBadge from "@/components/StaleBadge";
 import { ApiError, getTicker } from "@/lib/api";
+import { pushRecent } from "@/lib/recents";
 import type { TickerResponse } from "@/lib/types";
 import { ASSET_LABEL, timeAgo } from "@/lib/utils";
 
@@ -17,10 +20,12 @@ function Panel({
   title,
   children,
   className,
+  bodyClassName = "p-4",
 }: {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   return (
     <section
@@ -31,7 +36,7 @@ function Panel({
           {title}
         </h2>
       )}
-      {children}
+      <div className={bodyClassName}>{children}</div>
     </section>
   );
 }
@@ -50,7 +55,9 @@ export default function TickerPage({
     setLoading(true);
     setError(null);
     try {
-      setData(await getTicker(symbol));
+      const result = await getTicker(symbol);
+      setData(result);
+      pushRecent(result.symbol); // record only on a successful load
     } catch (e) {
       setError(
         e instanceof ApiError ? e : new ApiError(0, "Unexpected error"),
@@ -64,14 +71,25 @@ export default function TickerPage({
     load();
   }, [load]);
 
+  // Browser tab title: "{SYMBOL} Sentiment".
+  useEffect(() => {
+    document.title = `${symbol} Sentiment`;
+  }, [symbol]);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
-      <Link
-        href="/"
-        className="mb-6 inline-block text-sm text-ink-muted hover:text-ink"
-      >
-        ← MarketPulse
-      </Link>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start">
+        <Link
+          href="/"
+          className="shrink-0 pt-2.5 text-sm text-ink-muted hover:text-ink"
+        >
+          ← Home
+        </Link>
+        <div className="sm:ml-auto sm:w-80">
+          <SearchBar />
+          <RecentTickers exclude={symbol} align="right" showLabel={false} />
+        </div>
+      </div>
 
       {loading && <TickerSkeleton />}
 
@@ -92,38 +110,34 @@ export default function TickerPage({
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Header */}
-          <header className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="tabular text-3xl font-semibold tracking-tight">
-                  {data.symbol}
-                </h1>
-                <span className="rounded border border-terminal-border px-1.5 py-0.5 text-[10px] tracking-widest text-ink-muted">
-                  {ASSET_LABEL[data.asset_class]}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-ink-muted">{data.name}</p>
+          <header>
+            <div className="flex items-center gap-3">
+              <h1 className="tabular text-3xl font-semibold tracking-tight">
+                {data.symbol}
+              </h1>
+              <span className="rounded border border-terminal-border px-1.5 py-0.5 text-[10px] tracking-widest text-ink-muted">
+                {ASSET_LABEL[data.asset_class]}
+              </span>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              {data.stale && data.sentiment && (
+            <p className="mt-1 text-sm text-ink-muted">{data.name}</p>
+            {data.stale && data.sentiment && (
+              <div className="mt-2">
                 <StaleBadge computedAt={data.sentiment.computed_at} />
-              )}
-              {data.sentiment && !data.stale && (
-                <span className="text-[11px] text-ink-faint">
-                  Updated{" "}
-                  <span className="tabular">
-                    {timeAgo(data.sentiment.computed_at)}
-                  </span>
-                </span>
-              )}
-            </div>
+              </div>
+            )}
+            {data.sentiment && !data.stale && (
+              <p className="mt-1 text-[11px] text-ink-faint">
+                Updated {timeAgo(data.sentiment.computed_at)}
+              </p>
+            )}
           </header>
 
           {/* Gauge + analysis/breakdown */}
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel
               title="Sentiment"
-              className="flex flex-col items-center justify-center p-6 lg:col-span-1"
+              className="lg:col-span-1"
+              bodyClassName="flex flex-col items-center justify-center p-6"
             >
               {data.sentiment ? (
                 <SentimentGauge
@@ -138,7 +152,7 @@ export default function TickerPage({
             </Panel>
 
             <div className="space-y-6 lg:col-span-2">
-              <Panel title="Analysis" className="p-5">
+              <Panel title="Analysis">
                 {data.sentiment?.summary ? (
                   <p className="text-sm leading-relaxed text-ink">
                     {data.sentiment.summary}
@@ -160,7 +174,7 @@ export default function TickerPage({
                 )}
               </Panel>
 
-              <Panel title="Breakdown" className="p-5">
+              <Panel title="Breakdown">
                 {data.sentiment && data.sentiment.headline_count > 0 ? (
                   <SentimentBreakdown
                     positivePct={data.sentiment.positive_pct}
@@ -177,7 +191,7 @@ export default function TickerPage({
           </div>
 
           {/* Headlines */}
-          <Panel title={`Headlines (${data.headlines.length})`}>
+          <Panel title={`Headlines (${data.headlines.length})`} bodyClassName="">
             <HeadlineList headlines={data.headlines} />
           </Panel>
         </div>

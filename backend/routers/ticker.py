@@ -18,11 +18,13 @@ from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy import nulls_last, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Headline, SentimentScore, Ticker, get_session
 from services.cache import is_cache_fresh
 from services.dates import iso, parse_published
+from services.market_data import resolve_symbol
 from services.news import fetch_headlines
 from services.sentiment import (
     SentimentUnavailable,
@@ -214,10 +216,27 @@ async def get_ticker(
     symbol = symbol.upper().strip()
     ticker = await _get_ticker(session, symbol)
     if ticker is None:
-        return JSONResponse(
-            status_code=404,
-            content={"error": "Ticker not found", "symbol": symbol},
+        # Not seeded — try to resolve it on demand (any valid equity/ETF/future/
+        # crypto), seed it, then proceed. Keeps coverage open beyond the 610
+        # seeded tickers without a full re-seed.
+        resolved = await resolve_symbol(symbol)
+        if resolved is None:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Ticker not found", "symbol": symbol},
+            )
+        await session.execute(
+            pg_insert(Ticker)
+            .values(resolved)
+            .on_conflict_do_nothing(index_elements=["symbol"])
         )
+        await session.commit()
+        ticker = await _get_ticker(session, symbol)
+        if ticker is None:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Ticker not found", "symbol": symbol},
+            )
 
     # ---- cache hit -------------------------------------------------------- #
     if is_cache_fresh(ticker):
