@@ -1,0 +1,105 @@
+// All fetch calls to the FastAPI backend live here.
+import type {
+  HistoryPoint,
+  MoversResponse,
+  SearchResult,
+  TickerResponse,
+} from "./types";
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
+
+export class ApiError extends Error {
+  status: number;
+  symbol?: string;
+  constructor(status: number, message: string, symbol?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.symbol = symbol;
+  }
+}
+
+async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { cache: "no-store", ...init });
+  } catch {
+    throw new ApiError(0, "Network error — is the backend running?");
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* ignore non-JSON error bodies */
+    }
+    const msg =
+      (body as { error?: string })?.error ?? `Request failed (${res.status})`;
+    const sym = (body as { symbol?: string })?.symbol;
+    throw new ApiError(res.status, msg, sym);
+  }
+  return (await res.json()) as T;
+}
+
+/**
+ * GET /api/ticker/{symbol}
+ *
+ * Note: a 503 from the backend still carries a full payload (last stored score
+ * with `stale: true`), so we parse it as success rather than throwing. Only
+ * 404 (not found) and 422 (bad symbol) surface as errors.
+ */
+export async function getTicker(symbol: string): Promise<TickerResponse> {
+  const path = `/api/ticker/${encodeURIComponent(symbol)}`;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "Network error — is the backend running?", symbol);
+  }
+  if (res.status === 404 || res.status === 422) {
+    let body: { error?: string } = {};
+    try {
+      body = await res.json();
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(res.status, body.error ?? "Request failed", symbol);
+  }
+  if (!res.ok && res.status !== 503) {
+    throw new ApiError(res.status, `Request failed (${res.status})`, symbol);
+  }
+  return (await res.json()) as TickerResponse;
+}
+
+export async function refreshTicker(symbol: string): Promise<TickerResponse> {
+  return getJson<TickerResponse>(
+    `/api/ticker/${encodeURIComponent(symbol)}/refresh`,
+    { method: "POST" },
+  );
+}
+
+export async function searchTickers(q: string): Promise<SearchResult[]> {
+  const query = q.trim();
+  if (!query) return [];
+  const data = await getJson<{ results: SearchResult[] }>(
+    `/api/search?q=${encodeURIComponent(query)}`,
+  );
+  return data.results;
+}
+
+export async function getHistory(
+  symbol: string,
+  days = 7,
+): Promise<HistoryPoint[]> {
+  const data = await getJson<{ history: HistoryPoint[] }>(
+    `/api/ticker/${encodeURIComponent(symbol)}/history?days=${days}`,
+  );
+  return data.history;
+}
+
+export async function getMovers(
+  assetClass: "stocks" | "crypto" | "commodities",
+): Promise<MoversResponse> {
+  return getJson<MoversResponse>(`/api/movers/${assetClass}`);
+}

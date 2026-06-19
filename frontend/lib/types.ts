@@ -1,0 +1,60 @@
+// Shared types mirroring the FastAPI response shapes.
+
+export type AssetClass = "stock" | "crypto" | "commodity";
+export type SentimentLabel = "positive" | "negative" | "neutral";
+export type Confidence = "high" | "medium" | "low";
+export type Direction = "gainer" | "loser";
+
+export interface Sentiment {
+  score: number;
+  positive_pct: number;
+  negative_pct: number;
+  neutral_pct: number;
+  headline_count: number;
+  model_used: string;
+  summary: string | null;
+  computed_at: string;
+}
+
+export interface Headline {
+  title: string;
+  url: string;
+  source: string;
+  sentiment: SentimentLabel;
+  score: number;
+  confidence: Confidence;
+  published_at: string | null;
+}
+
+export interface TickerResponse {
+  symbol: string;
+  name: string;
+  asset_class: AssetClass;
+  stale: boolean;
+  sentiment: Sentiment | null;
+  headlines: Headline[];
+}
+
+export interface SearchResult {
+  symbol: string;
+  name: string;
+  asset_class: AssetClass;
+}
+
+export interface HistoryPoint {
+  score: number;
+  computed_at: string;
+}
+
+export interface Mover {
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+}
+
+export interface MoversResponse {
+  gainers: Mover[];
+  losers: Mover[];
+  cached_at: string;
+}
