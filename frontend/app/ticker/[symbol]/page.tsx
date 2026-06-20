@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import ErrorState from "@/components/ErrorState";
 import HeadlineList from "@/components/HeadlineList";
+import { Reveal } from "@/components/Motion";
 import { TickerHeaderSkeleton, TickerSkeleton } from "@/components/LoadingSkeleton";
 import PriceChart from "@/components/PriceChart";
 import RecentTickers from "@/components/RecentTickers";
@@ -101,7 +102,7 @@ export default function TickerPage({
           and sidebar don't jump when the data resolves. */}
       {loading && <TickerHeaderSkeleton />}
       {!loading && !error && data && (
-        <header className="mb-6">
+        <Reveal className="mb-6">
           <div className="flex items-center gap-3">
             <h1 className="tabular text-3xl font-semibold tracking-tight">
               {data.symbol}
@@ -122,7 +123,7 @@ export default function TickerPage({
               Updated {timeAgo(data.sentiment.computed_at)}
             </p>
           )}
-        </header>
+        </Reveal>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -151,7 +152,7 @@ export default function TickerPage({
           {!loading && !error && data && (
             <div className="space-y-6">
               {/* Gauge + analysis/breakdown */}
-              <div className="grid gap-6 lg:grid-cols-3">
+              <Reveal className="grid gap-6 lg:grid-cols-3">
                 <Panel
                   title="Sentiment"
                   className="flex flex-col lg:col-span-1"
@@ -207,20 +208,24 @@ export default function TickerPage({
                     )}
                   </Panel>
                 </div>
-              </div>
+              </Reveal>
 
               {/* Price chart (TradingView widget) */}
-              <Panel title="Price" bodyClassName="p-0">
-                <PriceChart symbol={data.symbol} assetClass={data.asset_class} />
-              </Panel>
+              <Reveal delay={0.08}>
+                <Panel title="Price" bodyClassName="p-0">
+                  <PriceChart symbol={data.symbol} assetClass={data.asset_class} />
+                </Panel>
+              </Reveal>
 
               {/* Headlines */}
-              <Panel
-                title={`Headlines (${data.headlines.length})`}
-                bodyClassName=""
-              >
-                <HeadlineList headlines={data.headlines} />
-              </Panel>
+              <Reveal delay={0.16}>
+                <Panel
+                  title={`Headlines (${data.headlines.length})`}
+                  bodyClassName=""
+                >
+                  <HeadlineList headlines={data.headlines} />
+                </Panel>
+              </Reveal>
             </div>
           )}
         </div>
@@ -228,8 +233,12 @@ export default function TickerPage({
         {/* Right sidebar: watchlist · top movers. Offset down on desktop so it
             lines up with the Analysis panel (past the ticker header). */}
         <aside className="flex flex-col gap-6">
-          <Watchlist active={symbol} />
-          <TopMovers stacked />
+          <Reveal delay={0.1}>
+            <Watchlist active={symbol} />
+          </Reveal>
+          <Reveal delay={0.18}>
+            <TopMovers stacked />
+          </Reveal>
         </aside>
       </div>
     </main>

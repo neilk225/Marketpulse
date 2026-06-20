@@ -41,6 +41,15 @@ export interface SearchResult {
   asset_class: AssetClass;
 }
 
+// Latest stored sentiment for a symbol, from the read-only batch endpoint
+// (no scoring triggered). Used for at-a-glance lists like the watchlist.
+export interface CachedSentiment {
+  score: number;
+  headline_count: number;
+  stale: boolean;
+  computed_at: string;
+}
+
 export interface Mover {
   symbol: string;
   name: string;

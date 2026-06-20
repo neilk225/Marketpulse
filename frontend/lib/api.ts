@@ -1,5 +1,10 @@
 // All fetch calls to the FastAPI backend live here.
-import type { MoversResponse, SearchResult, TickerResponse } from "./types";
+import type {
+  CachedSentiment,
+  MoversResponse,
+  SearchResult,
+  TickerResponse,
+} from "./types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
@@ -80,4 +85,22 @@ export async function getMovers(
   assetClass: "stocks" | "crypto" | "commodities",
 ): Promise<MoversResponse> {
   return getJson<MoversResponse>(`/api/movers/${assetClass}`);
+}
+
+/**
+ * GET /api/sentiment/batch — latest STORED sentiment for many symbols.
+ * Read-only on the backend (no scoring), so it's free to call for list views.
+ * Symbols with no stored score are absent from the returned map.
+ */
+export async function getCachedSentiments(
+  symbols: string[],
+): Promise<Record<string, CachedSentiment>> {
+  const list = Array.from(
+    new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean)),
+  );
+  if (list.length === 0) return {};
+  const data = await getJson<{ results: Record<string, CachedSentiment> }>(
+    `/api/sentiment/batch?symbols=${encodeURIComponent(list.join(","))}`,
+  );
+  return data.results ?? {};
 }

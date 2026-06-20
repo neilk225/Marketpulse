@@ -20,13 +20,11 @@ from datetime import datetime, timedelta, UTC
 from urllib.parse import quote_plus
 
 import feedparser
-import httpx
 
-from config import settings
+from config import FINNHUB_BASE, settings
+from services.http import get_client
 
 logger = logging.getLogger("marketpulse.news")
-
-FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 YAHOO_RSS = "https://finance.yahoo.com/rss/headline?s={symbol}"
 GOOGLE_RSS = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
@@ -74,14 +72,11 @@ SOURCE_MAP = {
 
 
 def get_source(url: str, entry=None) -> str:
-    # Google News entries carry the real publisher name in entry.source.title —
-    # prefer that over guessing from the (redirect) URL domain.
-    if entry is not None and hasattr(entry, "source"):
-        try:
-            if entry.source.get("title"):
-                return "google_news"
-        except AttributeError:
-            pass
+    # Google News wraps every item in a redirect URL, so the domain is useless;
+    # it's the only feed whose entries carry a `source` element, so its presence
+    # alone identifies the item as google_news.
+    if entry is not None and getattr(entry, "source", None):
+        return "google_news"
     for domain, name in SOURCE_MAP.items():
         if domain in url:
             return name
@@ -96,13 +91,12 @@ async def fetch_finnhub_news(symbol: str) -> list[dict]:
         f"?symbol={symbol}&from={week_ago}&to={today}"
         f"&token={settings.FINNHUB_API_KEY}"
     )
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        try:
-            r = await client.get(url)
-            r.raise_for_status()
-        except Exception as exc:  # noqa: BLE001 — partial failure tolerated
-            logger.warning("Finnhub news failed for %s: %s", symbol, exc)
-            return []
+    try:
+        r = await get_client().get(url, timeout=5.0)
+        r.raise_for_status()
+    except Exception as exc:  # noqa: BLE001 — partial failure tolerated
+        logger.warning("Finnhub news failed for %s: %s", symbol, exc)
+        return []
     return [
         {
             "title": item["headline"],
@@ -126,13 +120,10 @@ BROWSER_UA = (
 
 async def fetch_feed(url: str) -> list[dict]:
     try:
-        async with httpx.AsyncClient(
-            timeout=6.0,
-            follow_redirects=True,
-            headers={"User-Agent": BROWSER_UA},
-        ) as client:
-            r = await client.get(url)
-            r.raise_for_status()
+        r = await get_client().get(
+            url, timeout=6.0, headers={"User-Agent": BROWSER_UA}
+        )
+        r.raise_for_status()
         # Parsing is synchronous CPU work — keep it off the event loop.
         parsed = await asyncio.to_thread(feedparser.parse, r.content)
     except Exception as exc:  # noqa: BLE001
@@ -154,13 +145,17 @@ async def fetch_feed(url: str) -> list[dict]:
 async def fetch_headlines(
     symbol: str, asset_class: str, name: str = ""
 ) -> list[dict]:
-    headlines: list[dict] = []
-
+    # Every source is an independent HTTP call, so fire them concurrently rather
+    # than serially — on a cache miss this is the difference between waiting on
+    # one slow feed vs. the sum of them all. gather preserves order, so Finnhub
+    # (when present) still leads, then the feeds in _feed_urls order. Each fetcher
+    # swallows its own errors and returns [], so one dead source can't break this.
+    tasks = []
     if asset_class == "stock":
-        headlines += await fetch_finnhub_news(symbol)
+        tasks.append(fetch_finnhub_news(symbol))
+    tasks += [fetch_feed(url) for url in _feed_urls(symbol, asset_class, name)]
 
-    for url in _feed_urls(symbol, asset_class, name):
-        headlines += await fetch_feed(url)
+    headlines: list[dict] = [h for group in await asyncio.gather(*tasks) for h in group]
 
     # Deduplicate by title, cap at 30
     seen: set[str] = set()

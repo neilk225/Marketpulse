@@ -13,14 +13,15 @@ from __future__ import annotations
 import difflib
 import logging
 import re
-from difflib import SequenceMatcher
+from datetime import datetime, UTC
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import nulls_last, select
+from sqlalchemy import func, nulls_last, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from models import Headline, SentimentScore, Ticker, get_session
 from services.cache import is_cache_fresh
 from services.dates import iso, parse_published
@@ -70,6 +71,22 @@ async def _headlines_for_score(
         .order_by(nulls_last(Headline.published_at.desc()))
     )
     return list(result.scalars().all())
+
+
+async def _scorings_today(session: AsyncSession) -> int:
+    """Count real LLM scorings since 00:00 UTC for the global daily cost cap.
+
+    Every scoring writes one SentimentScore row, so counting rows is an exact,
+    restart-proof tally — no separate counter to keep in sync. No-news
+    placeholders (model_used='none') cost nothing, so they're excluded."""
+    start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    result = await session.execute(
+        select(func.count())
+        .select_from(SentimentScore)
+        .where(SentimentScore.created_at >= start)
+        .where(SentimentScore.model_used != "none")
+    )
+    return result.scalar_one() or 0
 
 
 # --------------------------------------------------------------------------- #
@@ -139,7 +156,7 @@ def _match_originals(scored: list[dict], originals: list[dict]) -> list[dict]:
     for i, s in enumerate(scored):
         ns = _norm_title(s.get("title", ""))
         chosen: dict | None = None
-        if i < len(originals) and SequenceMatcher(None, ns, norm[i]).ratio() >= 0.6:
+        if i < len(originals) and difflib.SequenceMatcher(None, ns, norm[i]).ratio() >= 0.6:
             chosen = originals[i]
         if chosen is None and ns in norm_map:
             chosen = norm_map[ns]
@@ -190,8 +207,6 @@ async def _persist(
         )
         session.add(row)
         headline_rows.append(row)
-
-    from datetime import datetime, UTC
 
     ticker.last_fetched_at = datetime.now(UTC)
     await session.commit()
@@ -246,6 +261,26 @@ async def get_ticker(
         )
         return _build_payload(ticker, score, headlines, stale=False)
 
+    # ---- daily cost cap --------------------------------------------------- #
+    # Stale cache + over the global daily scoring ceiling: refuse a new (paid)
+    # scoring and serve the last stored score as stale. Checked before any news
+    # fetch so a capped request does zero upstream work. New tickers with no
+    # prior score fall through to a null-sentiment stale payload.
+    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
+        logger.warning(
+            "daily scoring cap (%d) reached — serving %s stale",
+            settings.SCORING_DAILY_CAP,
+            symbol,
+        )
+        last = await _latest_score(session, ticker.id)
+        headlines = (
+            await _headlines_for_score(session, last.id) if last else []
+        )
+        return JSONResponse(
+            status_code=503,
+            content=_build_payload(ticker, last, headlines, stale=True),
+        )
+
     # ---- cache miss: run pipeline ---------------------------------------- #
     raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
 
@@ -277,3 +312,66 @@ async def get_ticker(
         session, ticker, aggregate, model_used, scored, raw_headlines, summary
     )
     return _build_payload(ticker, score, headlines, stale=False)
+
+
+# --------------------------------------------------------------------------- #
+# Batch cached sentiment — read-only, for at-a-glance lists (watchlist/recents)
+# --------------------------------------------------------------------------- #
+_BATCH_MAX = 50
+
+
+@router.get("/sentiment/batch")
+async def sentiment_batch(
+    symbols: str = Query(..., description="Comma-separated symbols"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Latest STORED sentiment for many symbols at once, keyed by symbol.
+
+    Read-only by design: it never fetches news or calls the LLM, so it's free
+    and can't touch the daily scoring cap — safe to call for every watchlist /
+    recents render. Symbols with no stored score (or unknown) are simply omitted.
+    """
+    syms: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols.split(","):
+        s = raw.strip().upper()
+        if s and s not in seen:
+            seen.add(s)
+            syms.append(s)
+        if len(syms) >= _BATCH_MAX:
+            break
+    if not syms:
+        return {"results": {}}
+
+    tickers = (
+        await session.execute(select(Ticker).where(Ticker.symbol.in_(syms)))
+    ).scalars().all()
+    by_id = {t.id: t for t in tickers}
+    if not by_id:
+        return {"results": {}}
+
+    # One row per ticker — the most recent score (DISTINCT ON needs the matching
+    # leading ORDER BY column).
+    scores = (
+        await session.execute(
+            select(SentimentScore)
+            .where(SentimentScore.ticker_id.in_(list(by_id.keys())))
+            .order_by(
+                SentimentScore.ticker_id, SentimentScore.created_at.desc()
+            )
+            .distinct(SentimentScore.ticker_id)
+        )
+    ).scalars().all()
+
+    results: dict[str, dict] = {}
+    for sc in scores:
+        ticker = by_id.get(sc.ticker_id)
+        if ticker is None:
+            continue
+        results[ticker.symbol] = {
+            "score": sc.score,
+            "headline_count": sc.headline_count,
+            "stale": not is_cache_fresh(ticker),
+            "computed_at": iso(sc.created_at),
+        }
+    return {"results": results}

@@ -2,7 +2,15 @@ import { cx } from "@/lib/utils";
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div className={cx("animate-pulse rounded bg-terminal-raised", className)} />
+    <div
+      className={cx(
+        "relative overflow-hidden rounded bg-terminal-raised",
+        className,
+      )}
+    >
+      {/* Moving sheen — reads as "loading", not a heartbeat pulse. */}
+      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+    </div>
   );
 }
 

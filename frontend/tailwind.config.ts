@@ -32,6 +32,35 @@ const config: Config = {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.96)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        "slide-down": {
+          from: { opacity: "0", transform: "translateY(-6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        // Sweeping highlight for skeletons — a moving sheen, not a flat pulse.
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.4s ease-out both",
+        "fade-in-up": "fade-in-up 0.5s ease-out both",
+        "scale-in": "scale-in 0.3s ease-out both",
+        "slide-down": "slide-down 0.18s ease-out both",
+        shimmer: "shimmer 1.6s infinite",
+      },
     },
   },
   plugins: [],

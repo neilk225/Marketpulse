@@ -21,17 +21,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 
-import httpx
+import httpx  # used for the AsyncClient type hint on _commodity_quote
 
-from config import settings
+from config import FINNHUB_BASE, settings
+from services.http import get_client
 
 logger = logging.getLogger("marketpulse.market_data")
 
 MOVERS_PER_SIDE = 5
 
 FMP_BASE = "https://financialmodelingprep.com/stable"
-FINNHUB_BASE = "https://finnhub.io/api/v1"
 COINGECKO_MARKETS = "https://api.coingecko.com/api/v3/coins/markets"
 
 # Commodities are tracked via liquid, exchange-traded commodity ETFs. FMP's free
@@ -91,19 +92,21 @@ def _stock_rows(payload, limit: int) -> list[dict]:
 
 async def fetch_stock_movers() -> dict:
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            gainers, losers = await asyncio.gather(
-                client.get(
-                    f"{FMP_BASE}/biggest-gainers",
-                    params={"apikey": settings.FMP_API_KEY},
-                ),
-                client.get(
-                    f"{FMP_BASE}/biggest-losers",
-                    params={"apikey": settings.FMP_API_KEY},
-                ),
-            )
-            gainers.raise_for_status()
-            losers.raise_for_status()
+        client = get_client()
+        gainers, losers = await asyncio.gather(
+            client.get(
+                f"{FMP_BASE}/biggest-gainers",
+                params={"apikey": settings.FMP_API_KEY},
+                timeout=15.0,
+            ),
+            client.get(
+                f"{FMP_BASE}/biggest-losers",
+                params={"apikey": settings.FMP_API_KEY},
+                timeout=15.0,
+            ),
+        )
+        gainers.raise_for_status()
+        losers.raise_for_status()
     except Exception as exc:  # noqa: BLE001 — any FMP/network error
         logger.warning("stock movers fetch failed: %s", exc)
         raise MoversUnavailable(str(exc)) from exc
@@ -122,6 +125,7 @@ async def _commodity_quote(client: httpx.AsyncClient, symbol, name) -> dict | No
         r = await client.get(
             f"{FINNHUB_BASE}/quote",
             params={"symbol": symbol, "token": settings.FINNHUB_API_KEY},
+            timeout=15.0,
         )
         r.raise_for_status()
         q = r.json()
@@ -136,13 +140,13 @@ async def _commodity_quote(client: httpx.AsyncClient, symbol, name) -> dict | No
 
 async def fetch_commodity_movers() -> dict:
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            results = await asyncio.gather(
-                *(
-                    _commodity_quote(client, symbol, name)
-                    for symbol, name in COMMODITY_TICKERS
-                )
+        client = get_client()
+        results = await asyncio.gather(
+            *(
+                _commodity_quote(client, symbol, name)
+                for symbol, name in COMMODITY_TICKERS
             )
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("commodity movers fetch failed: %s", exc)
         raise MoversUnavailable(str(exc)) from exc
@@ -168,10 +172,11 @@ async def fetch_crypto_movers() -> dict:
     if settings.COINGECKO_API_KEY:
         headers["x-cg-demo-api-key"] = settings.COINGECKO_API_KEY
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(COINGECKO_MARKETS, params=params, headers=headers)
-            r.raise_for_status()
-            coins = r.json()
+        r = await get_client().get(
+            COINGECKO_MARKETS, params=params, headers=headers, timeout=15.0
+        )
+        r.raise_for_status()
+        coins = r.json()
     except Exception as exc:  # noqa: BLE001
         logger.warning("crypto movers fetch failed: %s", exc)
         raise MoversUnavailable(str(exc)) from exc
@@ -209,21 +214,23 @@ async def resolve_symbol(symbol: str) -> dict | None:
     if not _US_SYMBOL.match(sym):
         return None
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            quote, profile = await asyncio.gather(
-                client.get(
-                    f"{FINNHUB_BASE}/quote",
-                    params={"symbol": sym, "token": settings.FINNHUB_API_KEY},
-                ),
-                client.get(
-                    f"{FINNHUB_BASE}/stock/profile2",
-                    params={"symbol": sym, "token": settings.FINNHUB_API_KEY},
-                ),
-            )
-            quote.raise_for_status()
-            profile.raise_for_status()
-            q = quote.json()
-            p = profile.json()
+        client = get_client()
+        quote, profile = await asyncio.gather(
+            client.get(
+                f"{FINNHUB_BASE}/quote",
+                params={"symbol": sym, "token": settings.FINNHUB_API_KEY},
+                timeout=10.0,
+            ),
+            client.get(
+                f"{FINNHUB_BASE}/stock/profile2",
+                params={"symbol": sym, "token": settings.FINNHUB_API_KEY},
+                timeout=10.0,
+            ),
+        )
+        quote.raise_for_status()
+        profile.raise_for_status()
+        q = quote.json()
+        p = profile.json()
     except Exception as exc:  # noqa: BLE001
         logger.warning("symbol resolve failed for %s: %s", sym, exc)
         return None
@@ -234,22 +241,38 @@ async def resolve_symbol(symbol: str) -> dict | None:
     return {"symbol": sym, "name": p["name"], "asset_class": "stock"}
 
 
+# Autocomplete fires one search per debounced keystroke, but the result for a
+# given term is stable for minutes. A small TTL cache collapses repeat terms
+# (backspacing, re-typing, two users on the same query) to a single Finnhub call.
+_SEARCH_TTL = 300.0  # seconds
+_SEARCH_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_SEARCH_CACHE_MAX = 500
+
+
 async def search_symbols(term: str) -> list[dict]:
     """Live symbol search via Finnhub, filtered to US equities/ETFs. Augments
     local autocomplete so unseeded tickers (RIOT, ASTS…) are discoverable
     WITHOUT scoring them. Returns [] on any error — autocomplete then falls back
     to local DB results."""
     term = term.strip()
-    if not term:
+    # A single character is too noisy to be worth a remote call — local DB
+    # prefix matching covers it, and Finnhub returns mostly junk for 1 char.
+    if len(term) < 2:
         return []
+
+    key = term.lower()
+    hit = _SEARCH_CACHE.get(key)
+    if hit is not None and time.monotonic() - hit[0] < _SEARCH_TTL:
+        return hit[1]
+
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.get(
-                f"{FINNHUB_BASE}/search",
-                params={"q": term, "token": settings.FINNHUB_API_KEY},
-            )
-            r.raise_for_status()
-            results = r.json().get("result", [])
+        r = await get_client().get(
+            f"{FINNHUB_BASE}/search",
+            params={"q": term, "token": settings.FINNHUB_API_KEY},
+            timeout=8.0,
+        )
+        r.raise_for_status()
+        results = r.json().get("result", [])
     except Exception as exc:  # noqa: BLE001
         logger.warning("symbol search failed for %r: %s", term, exc)
         return []
@@ -268,6 +291,13 @@ async def search_symbols(term: str) -> list[dict]:
         seen.add(sym)
         name = (q.get("description") or sym).strip().title()
         out.append({"symbol": sym, "name": name, "asset_class": "stock"})
+
+    # Cache only successful responses (errors return [] above, uncached, so a
+    # transient failure self-heals on the next keystroke). Bound the dict size
+    # with a coarse clear — terms churn, so a precise LRU isn't worth it.
+    if len(_SEARCH_CACHE) >= _SEARCH_CACHE_MAX:
+        _SEARCH_CACHE.clear()
+    _SEARCH_CACHE[key] = (time.monotonic(), out)
     return out
 
 

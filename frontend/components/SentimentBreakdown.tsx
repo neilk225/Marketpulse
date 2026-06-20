@@ -1,3 +1,7 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 import { formatPct } from "@/lib/utils";
 
 interface Props {
@@ -40,10 +44,13 @@ export default function SentimentBreakdown({
     <div className="space-y-3">
       {/* Stacked spectrum bar */}
       <div className="flex h-2 w-full overflow-hidden rounded-full bg-terminal-border">
-        {ROWS.map((r) => (
-          <div
+        {ROWS.map((r, i) => (
+          <motion.div
             key={r.key}
-            style={{ width: `${values[r.key]}%`, backgroundColor: r.color }}
+            style={{ backgroundColor: r.color }}
+            initial={{ width: 0 }}
+            animate={{ width: `${values[r.key]}%` }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 + i * 0.05 }}
           />
         ))}
       </div>

@@ -1,9 +1,15 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getRecents } from "@/lib/recents";
+import { getCachedSentiments } from "@/lib/api";
+import type { CachedSentiment } from "@/lib/types";
+import { formatScore, scoreHex } from "@/lib/utils";
+
+const MotionLink = motion.create(Link);
 
 /** Recently viewed tickers from localStorage. Empty (renders nothing) until the
  *  user has opened at least one ticker. `exclude` drops the given symbol (e.g.
@@ -20,6 +26,9 @@ export default function RecentTickers({
   showLabel?: boolean;
 }) {
   const [recents, setRecents] = useState<string[]>([]);
+  const [sentiments, setSentiments] = useState<
+    Record<string, CachedSentiment>
+  >({});
 
   useEffect(() => {
     setRecents(getRecents());
@@ -27,6 +36,27 @@ export default function RecentTickers({
 
   const ex = exclude?.toUpperCase();
   const shown = ex ? recents.filter((s) => s !== ex) : recents;
+
+  // Cached sentiment for the shown chips (read-only — no scoring triggered).
+  const shownKey = shown.join(",");
+  useEffect(() => {
+    if (!shownKey) {
+      setSentiments({});
+      return;
+    }
+    let cancelled = false;
+    getCachedSentiments(shownKey.split(","))
+      .then((s) => {
+        if (!cancelled) setSentiments(s);
+      })
+      .catch(() => {
+        /* chips still work without readings */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [shownKey]);
+
   if (shown.length === 0) return null;
 
   return (
@@ -45,14 +75,32 @@ export default function RecentTickers({
               : "justify-center"
         }`}
       >
-        {shown.map((s) => (
-          <Link
+        {shown.map((s, i) => (
+          <MotionLink
             key={s}
             href={`/ticker/${encodeURIComponent(s)}`}
-            className="tabular rounded border border-terminal-border px-2 py-0.5 text-xs text-ink-muted hover:bg-terminal-hover hover:text-ink"
+            className="tabular flex items-center gap-1.5 rounded border border-terminal-border px-2 py-0.5 text-xs text-ink-muted hover:bg-terminal-hover hover:text-ink"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut", delay: i * 0.04 }}
           >
-            {s}
-          </Link>
+            <span>{s}</span>
+            {/* Fixed-width slot: the score fades in here without widening the
+                chip, so a late reading never reflows the row. */}
+            <span className="w-7 text-right">
+              {sentiments[s] && (
+                <span
+                  style={{
+                    color: scoreHex(sentiments[s].score),
+                    opacity: sentiments[s].stale ? 0.6 : 1,
+                  }}
+                  title={sentiments[s].stale ? "Last reading (may be stale)" : "Current sentiment"}
+                >
+                  {formatScore(sentiments[s].score)}
+                </span>
+              )}
+            </span>
+          </MotionLink>
         ))}
       </div>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -124,12 +125,17 @@ export default function SearchBar({
         autoComplete="off"
       />
 
-      {showDropdown && (
-        <div
-          id="search-listbox"
-          role="listbox"
-          className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-terminal-border bg-terminal-panel shadow-xl"
-        >
+      <AnimatePresence>
+        {showDropdown && (
+          <motion.div
+            id="search-listbox"
+            role="listbox"
+            className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-terminal-border bg-terminal-panel shadow-xl"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+          >
           {loading && results.length === 0 && (
             <div className="px-4 py-3 text-sm text-ink-faint">Searching…</div>
           )}
@@ -188,8 +194,9 @@ export default function SearchBar({
           {loading && results.length === 0 && !lookupSymbol && (
             <div className="px-4 py-3 text-sm text-ink-faint">Searching…</div>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

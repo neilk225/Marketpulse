@@ -1,3 +1,7 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 import type { Headline } from "@/lib/types";
 import {
   CONFIDENCE_LABEL,
@@ -15,13 +19,22 @@ const SENTIMENT_DOT: Record<string, string> = {
   negative: "bg-bear",
 };
 
-function HeadlineRow({ h }: { h: Headline }) {
+function HeadlineRow({ h, index }: { h: Headline; index: number }) {
   const signal = SENTIMENT_SIGNAL[h.sentiment];
   const hasLink = Boolean(h.url);
   const TitleTag = hasLink ? "a" : "span";
 
   return (
-    <li className="border-b border-terminal-border px-4 py-3 last:border-0 hover:bg-terminal-hover">
+    <motion.li
+      className="border-b border-terminal-border px-4 py-3 last:border-0 hover:bg-terminal-hover"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.3,
+        ease: "easeOut",
+        delay: Math.min(index, 12) * 0.03,
+      }}
+    >
       <div className="flex items-start gap-3">
         <span
           className={cx(
@@ -65,7 +78,7 @@ function HeadlineRow({ h }: { h: Headline }) {
           </div>
         </div>
       </div>
-    </li>
+    </motion.li>
   );
 }
 
@@ -80,7 +93,7 @@ export default function HeadlineList({ headlines }: { headlines: Headline[] }) {
   return (
     <ul className="max-h-[28rem] overflow-y-auto">
       {headlines.map((h, i) => (
-        <HeadlineRow key={`${h.url || h.title}-${i}`} h={h} />
+        <HeadlineRow key={`${h.url || h.title}-${i}`} h={h} index={i} />
       ))}
     </ul>
   );

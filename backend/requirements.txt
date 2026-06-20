@@ -1,8 +1,9 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-httpx==0.28.1
-feedparser==6.0.11
+# Pinned to the versions actually tested locally so prod matches dev exactly.
+fastapi==0.118.0
+uvicorn[standard]==0.30.6
+sqlalchemy[asyncio]==2.0.51
+asyncpg==0.31.0
+httpx==0.27.2
+feedparser==6.0.12
 python-dateutil==2.9.0.post0
-pydantic-settings==2.7.1
+pydantic-settings==2.11.0

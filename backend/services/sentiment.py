@@ -10,9 +10,8 @@ import json
 import logging
 import re
 
-import httpx
-
 from config import settings
+from services.http import get_client
 
 logger = logging.getLogger("marketpulse.sentiment")
 
@@ -37,10 +36,11 @@ the company.
 Return ONLY a valid JSON object — no preamble, no markdown fences, no text
 outside the JSON. It must have exactly these two fields:
 
-  - "summary": 2-3 sentences for a retail investor. Lead with the NET direction
+  - "summary": 3-4 sentences for a retail investor. Lead with the NET direction
       (bullish / bearish / mixed) and name the 1-2 concrete drivers (earnings,
-      regulation, product launches, guidance, etc.). If there is no meaningful
-      news, say so plainly.
+      regulation, product launches, guidance, etc.). Close with one forward-
+      looking sentence on the key catalyst or risk an investor should watch next.
+      If there is no meaningful news, say so plainly.
   - "headlines": an array of objects, each with exactly:
       - "title": the original headline text (string)
       - "sentiment": "positive" | "negative" | "neutral"
@@ -101,17 +101,16 @@ async def score_headlines(
         "temperature": 0.1,
     }
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=30.0,
-            )
-            r.raise_for_status()
+        r = await get_client().post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=30.0,
+        )
+        r.raise_for_status()
     except Exception as exc:  # noqa: BLE001
         logger.warning("OpenRouter request failed for %s: %s", symbol, exc)
         raise SentimentUnavailable(str(exc)) from exc
@@ -217,6 +216,9 @@ def compute_aggregate(scored: list[dict]) -> dict:
             "neutral_pct": 0.0,
             "headline_count": 0,
         }
+    # Confidence-weighted shrink toward neutral: a high-confidence score counts
+    # in full, while a low-confidence one is pulled most of the way back to 0.5
+    # (w=score*conf + 0.5*(1-conf)). Unknown confidence defaults to medium.
     weights = {"high": 1.0, "medium": 0.75, "low": 0.4}
     weighted = [
         s["score"] * weights.get(s["confidence"], 0.75)

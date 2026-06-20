@@ -11,9 +11,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import settings
 from models import AsyncSessionLocal, init_db
 from routers import movers, search, ticker
 from services.detection import load_known_crypto_symbols
+from services.http import aclose as close_http_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("marketpulse")
@@ -28,16 +30,15 @@ async def lifespan(app: FastAPI):
         await load_known_crypto_symbols(session)
     logger.info("MarketPulse backend ready")
     yield
+    # Shutdown: close the shared httpx client's connection pool.
+    await close_http_client()
 
 
 app = FastAPI(title="MarketPulse API", version="1.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://marketpulse.vercel.app",
-        "http://localhost:3000",  # local dev
-    ],
+    allow_origins=settings.cors_origins,  # set ALLOWED_ORIGINS in prod
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

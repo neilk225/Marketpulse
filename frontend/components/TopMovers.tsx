@@ -1,10 +1,12 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Skeleton } from "@/components/LoadingSkeleton";
 import { getMovers } from "@/lib/api";
+import { pushRecent } from "@/lib/recents";
 import type { Mover, MoversResponse } from "@/lib/types";
 import { cx, formatPrice, formatSignedPct, timeAgo } from "@/lib/utils";
 
@@ -15,12 +17,18 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "commodities", label: "Commodities" },
 ];
 
-function MoverRow({ m }: { m: Mover }) {
+const MotionLink = motion.create(Link);
+
+function MoverRow({ m, index }: { m: Mover; index: number }) {
   const up = m.change_pct >= 0;
   return (
-    <Link
+    <MotionLink
       href={`/ticker/${encodeURIComponent(m.symbol)}`}
+      onClick={() => pushRecent(m.symbol)}
       className="flex items-center gap-3 border-b border-terminal-border px-4 py-2.5 last:border-0 hover:bg-terminal-hover"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut", delay: index * 0.04 }}
     >
       <div className="min-w-0 flex-1">
         <div className="tabular text-sm font-medium text-ink">{m.symbol}</div>
@@ -39,7 +47,7 @@ function MoverRow({ m }: { m: Mover }) {
           {formatSignedPct(m.change_pct)}
         </div>
       </div>
-    </Link>
+    </MotionLink>
   );
 }
 
@@ -47,7 +55,7 @@ function MoverColumn({ rows }: { rows: Mover[] }) {
   return (
     <div className="min-w-0">
       {rows.length > 0 ? (
-        rows.map((m) => <MoverRow key={m.symbol} m={m} />)
+        rows.map((m, i) => <MoverRow key={m.symbol} m={m} index={i} />)
       ) : (
         <div className="px-4 py-3 text-xs text-ink-faint">No data.</div>
       )}
@@ -55,11 +63,25 @@ function MoverColumn({ rows }: { rows: Mover[] }) {
   );
 }
 
+/** Mirrors MoverRow's exact layout/height so the skeleton→data swap never
+ *  changes the column's size — no jump when the fetch lands. */
 function ColumnSkeleton() {
   return (
-    <div className="space-y-2 px-4 py-3">
+    <div>
       {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-9 w-full" />
+        <div
+          key={i}
+          className="flex items-center gap-3 border-b border-terminal-border px-4 py-2.5 last:border-0"
+        >
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-2.5 w-24" />
+          </div>
+          <div className="flex flex-col items-end space-y-1.5">
+            <Skeleton className="h-3.5 w-12" />
+            <Skeleton className="h-2.5 w-10" />
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -110,13 +132,18 @@ export default function TopMovers({ stacked = false }: { stacked?: boolean }) {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cx(
-                "border-b-2 px-3 py-2.5 text-xs font-medium transition-colors",
-                tab === t.key
-                  ? "border-ink text-ink"
-                  : "border-transparent text-ink-faint hover:text-ink-muted",
+                "relative px-3 py-2.5 text-xs font-medium transition-colors",
+                tab === t.key ? "text-ink" : "text-ink-faint hover:text-ink-muted",
               )}
             >
               {t.label}
+              {tab === t.key && (
+                <motion.span
+                  layoutId="moversTabUnderline"
+                  className="absolute inset-x-0 -bottom-px h-0.5 bg-ink"
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                />
+              )}
             </button>
           ))}
         </div>
@@ -147,7 +174,8 @@ export default function TopMovers({ stacked = false }: { stacked?: boolean }) {
             </div>
           );
         return (
-          <div className={cols}>
+          // key={tab} remounts the columns on tab switch so rows re-stagger in.
+          <div className={cols} key={tab}>
             <MoverColumn rows={data?.gainers ?? []} />
             <MoverColumn rows={data?.losers ?? []} />
           </div>

@@ -29,6 +29,19 @@ body {
   }
 }
 
+/* Respect users who ask for less motion — near-instant everything, no loops.
+   (framer-motion components additionally check useReducedMotion.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Thin terminal scrollbars */
 * {
   scrollbar-width: thin;

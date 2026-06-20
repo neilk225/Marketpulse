@@ -14,7 +14,21 @@ export const getWatchlist = (): string[] => {
   if (typeof window === "undefined") return [];
   try {
     const list = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    // Tolerate entries left by other versions: a bare "AAPL" string OR an
+    // { symbol, ... } object. Coerce everything to an uppercase symbol so the
+    // rest of the app always sees string[]. (Storage self-heals to strings on
+    // the next add/remove.)
+    return list
+      .map((e) =>
+        typeof e === "string"
+          ? e
+          : e && typeof e.symbol === "string"
+            ? e.symbol
+            : null,
+      )
+      .filter((s): s is string => !!s)
+      .map((s) => s.toUpperCase());
   } catch {
     return [];
   }

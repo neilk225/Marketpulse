@@ -4,26 +4,29 @@ import type { AssetClass, Confidence, SentimentLabel } from "./types";
 export type Signal = "bull" | "neutral" | "bear";
 
 /**
- * Spec score -> color bands:
- *   0.00–0.35 -> red    (bearish)
- *   0.35–0.55 -> yellow (neutral)
- *   0.55–1.00 -> green  (bullish)
+ * Aggregate score → 5-band scale. The label and the color share ONE source of
+ * truth (SCORE_BANDS) so they can never disagree — previously the label had 5
+ * bands but the color only 3, so a 0.57 read "SLIGHTLY BULLISH" yet was painted
+ * full green. The two "slightly" bands sit between the pure signals: orange
+ * leaning bearish, yellow-green (lime) leaning bullish. Per-headline sentiment
+ * stays 3-color and categorical (see SIGNAL_TEXT / SENTIMENT_SIGNAL below).
  */
-export function scoreSignal(score: number): Signal {
-  if (score < 0.35) return "bear";
-  if (score < 0.55) return "neutral";
-  return "bull";
+const SCORE_BANDS = [
+  { max: 0.3, label: "BEARISH", hex: "#ef4444" }, // red
+  { max: 0.45, label: "SLIGHTLY BEARISH", hex: "#f97316" }, // orange
+  { max: 0.55, label: "NEUTRAL", hex: "#eab308" }, // yellow
+  { max: 0.7, label: "SLIGHTLY BULLISH", hex: "#84cc16" }, // yellow-green
+  { max: Infinity, label: "BULLISH", hex: "#22c55e" }, // green
+] as const;
+
+function scoreBand(score: number): (typeof SCORE_BANDS)[number] {
+  return (
+    SCORE_BANDS.find((b) => score < b.max) ?? SCORE_BANDS[SCORE_BANDS.length - 1]
+  );
 }
 
-// Hex values match tailwind.config signal colors (for SVG/canvas drawing).
-export const SIGNAL_HEX: Record<Signal, string> = {
-  bull: "#22c55e",
-  neutral: "#eab308",
-  bear: "#ef4444",
-};
-
 export function scoreHex(score: number): string {
-  return SIGNAL_HEX[scoreSignal(score)];
+  return scoreBand(score).hex;
 }
 
 // Tailwind text-color class for a signal (used on numeric values).
@@ -45,13 +48,10 @@ export const SIGNAL_LABEL: Record<Signal, string> = {
   bear: "BEARISH",
 };
 
-// Finer 5-band label for the headline gauge (color still maps to the 3 signals).
+// 5-band label for the gauge — same source of truth (and thus same cut points)
+// as the color, so the two always agree.
 export function scoreLabel(score: number): string {
-  if (score < 0.3) return "BEARISH";
-  if (score < 0.45) return "SLIGHTLY BEARISH";
-  if (score < 0.55) return "NEUTRAL";
-  if (score < 0.7) return "SLIGHTLY BULLISH";
-  return "BULLISH";
+  return scoreBand(score).label;
 }
 
 export function formatScore(score: number): string {
