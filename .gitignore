@@ -29,3 +29,6 @@ Thumbs.db
 
 # Claude Code local settings (machine-local; can contain approved commands)
 .claude/settings.local.json
+
+# Internal design/spec doc — kept locally, not published in the repo
+marketpulse_spec_1.md
