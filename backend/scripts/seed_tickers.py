@@ -33,15 +33,17 @@ SP500_CSV_URL = (
     "main/data/constituents.csv"
 )
 
+# Commodities tracked via liquid commodity ETFs (real, quoteable, scoreable
+# tickers) — keep in sync with services.market_data.COMMODITY_TICKERS.
 COMMODITY_TICKERS = [
-    ("GC=F", "Gold Futures"),
-    ("SI=F", "Silver Futures"),
-    ("CL=F", "Crude Oil Futures"),
-    ("NG=F", "Natural Gas Futures"),
-    ("ZW=F", "Wheat Futures"),
-    ("ZC=F", "Corn Futures"),
-    ("HG=F", "Copper Futures"),
-    ("PL=F", "Platinum Futures"),
+    ("GLD", "Gold"),
+    ("SLV", "Silver"),
+    ("USO", "Crude Oil"),
+    ("UNG", "Natural Gas"),
+    ("CPER", "Copper"),
+    ("PPLT", "Platinum"),
+    ("WEAT", "Wheat"),
+    ("CORN", "Corn"),
 ]
 
 

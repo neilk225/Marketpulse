@@ -65,7 +65,7 @@ function ColumnSkeleton() {
   );
 }
 
-export default function TopMovers() {
+export default function TopMovers({ stacked = false }: { stacked?: boolean }) {
   const [tab, setTab] = useState<Tab>("stocks");
   const [data, setData] = useState<MoversResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,21 +127,32 @@ export default function TopMovers() {
         )}
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 divide-y divide-terminal-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          <ColumnSkeleton />
-          <ColumnSkeleton />
-        </div>
-      ) : error ? (
-        <div className="px-4 py-8 text-center text-sm text-ink-muted">
-          Market data temporarily unavailable.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 divide-y divide-terminal-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          <MoverColumn rows={data?.gainers ?? []} />
-          <MoverColumn rows={data?.losers ?? []} />
-        </div>
-      )}
+      {(() => {
+        // Right rail (stacked): gainers above losers, single column. Home/wide
+        // (split): two columns side by side. Color (green/red %) marks each side.
+        const cols = stacked
+          ? "grid grid-cols-1 divide-y divide-terminal-border"
+          : "grid grid-cols-1 divide-y divide-terminal-border sm:grid-cols-2 sm:divide-x sm:divide-y-0";
+        if (loading)
+          return (
+            <div className={cols}>
+              <ColumnSkeleton />
+              <ColumnSkeleton />
+            </div>
+          );
+        if (error)
+          return (
+            <div className="px-4 py-8 text-center text-sm text-ink-muted">
+              Market data temporarily unavailable.
+            </div>
+          );
+        return (
+          <div className={cols}>
+            <MoverColumn rows={data?.gainers ?? []} />
+            <MoverColumn rows={data?.losers ?? []} />
+          </div>
+        );
+      })()}
     </section>
   );
 }

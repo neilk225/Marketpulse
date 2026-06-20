@@ -45,8 +45,13 @@ export const SIGNAL_LABEL: Record<Signal, string> = {
   bear: "BEARISH",
 };
 
+// Finer 5-band label for the headline gauge (color still maps to the 3 signals).
 export function scoreLabel(score: number): string {
-  return SIGNAL_LABEL[scoreSignal(score)];
+  if (score < 0.3) return "BEARISH";
+  if (score < 0.45) return "SLIGHTLY BEARISH";
+  if (score < 0.55) return "NEUTRAL";
+  if (score < 0.7) return "SLIGHTLY BULLISH";
+  return "BULLISH";
 }
 
 export function formatScore(score: number): string {
@@ -89,6 +94,16 @@ export const ASSET_LABEL: Record<AssetClass, string> = {
   crypto: "CRYPTO",
   commodity: "COMMODITY",
 };
+
+/**
+ * Map our symbol to a TradingView widget symbol. Stocks and commodity ETFs
+ * (GLD, USO…) resolve as-is; crypto tickers (BTC, ETH) need a USD pair (BTCUSD).
+ * TradingView auto-resolves the exchange, so no exchange prefix is needed.
+ */
+export function tvSymbol(symbol: string, assetClass: AssetClass): string {
+  const s = symbol.toUpperCase();
+  return assetClass === "crypto" ? `${s}USD` : s;
+}
 
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   high: "HIGH",

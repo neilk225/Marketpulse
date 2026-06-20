@@ -89,7 +89,7 @@ export default function SentimentGauge({
         />
       </svg>
 
-      <div className="absolute flex flex-col items-center">
+      <div className="absolute top-1/2 flex -translate-y-1/2 flex-col items-center">
         <span
           className="tabular text-4xl font-semibold leading-none"
           style={{ color }}

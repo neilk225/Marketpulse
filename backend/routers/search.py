@@ -1,6 +1,6 @@
 """GET /api/search — ticker autocomplete.
 
-Local seeded tickers (instant) merged with a live Yahoo symbol search so any
+Local seeded tickers (instant) merged with a live Finnhub symbol search so any
 real ticker is discoverable, not just the seeded ~610. This is autocomplete
 only — no sentiment scoring happens here; a ticker is scored only when the user
 actually opens its page.

@@ -4,6 +4,7 @@ interface Props {
   positivePct: number;
   negativePct: number;
   neutralPct: number;
+  total: number;
 }
 
 const ROWS = [
@@ -16,12 +17,24 @@ export default function SentimentBreakdown({
   positivePct,
   negativePct,
   neutralPct,
+  total,
 }: Props) {
   const values: Record<string, number> = {
     positive: positivePct,
     neutral: neutralPct,
     negative: negativePct,
   };
+
+  // Derive whole-article counts from the percentages so the three always sum to
+  // the total (neutral absorbs any rounding remainder).
+  const positive = Math.round((positivePct / 100) * total);
+  const negative = Math.round((negativePct / 100) * total);
+  const counts: Record<string, number> = {
+    positive,
+    negative,
+    neutral: Math.max(0, total - positive - negative),
+  };
+  const article = (n: number) => `${n} ${n === 1 ? "article" : "articles"}`;
 
   return (
     <div className="space-y-3">
@@ -35,7 +48,7 @@ export default function SentimentBreakdown({
         ))}
       </div>
 
-      {/* Legend with percentages */}
+      {/* Legend with percentages + article counts */}
       <div className="grid grid-cols-3 gap-2">
         {ROWS.map((r) => (
           <div key={r.key} className="flex flex-col">
@@ -44,6 +57,9 @@ export default function SentimentBreakdown({
             </span>
             <span className={`tabular text-sm font-medium ${r.text}`}>
               {formatPct(values[r.key])}
+            </span>
+            <span className="tabular mt-0.5 text-[11px] text-ink-faint">
+              {article(counts[r.key])}
             </span>
           </div>
         ))}

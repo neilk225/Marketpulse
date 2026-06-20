@@ -3,13 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import WatchlistStar from "@/components/WatchlistStar";
 import { searchTickers } from "@/lib/api";
 import type { SearchResult } from "@/lib/types";
 import { ASSET_LABEL, cx } from "@/lib/utils";
 
 const DEBOUNCE_MS = 200;
 
-export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }) {
+export default function SearchBar({
+  autoFocus = false,
+  size = "md",
+}: {
+  autoFocus?: boolean;
+  size?: "md" | "lg";
+}) {
   const router = useRouter();
   const [value, setValue] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -107,7 +114,10 @@ export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="Search a symbol or name — AAPL, Bitcoin, Gold…"
-        className="w-full rounded-lg border border-terminal-border bg-terminal-panel px-4 py-3 text-sm outline-none placeholder:text-ink-faint focus:border-ink-faint"
+        className={cx(
+          "w-full rounded-lg border border-terminal-border bg-terminal-panel outline-none placeholder:text-ink-faint focus:border-ink-faint",
+          size === "lg" ? "px-5 py-4 text-base" : "px-4 py-3 text-sm",
+        )}
         role="combobox"
         aria-expanded={showDropdown}
         aria-controls="search-listbox"
@@ -124,27 +134,32 @@ export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }
             <div className="px-4 py-3 text-sm text-ink-faint">Searching…</div>
           )}
           {results.map((r, i) => (
-            <button
+            <div
               key={r.symbol}
               role="option"
               aria-selected={i === active}
               onMouseEnter={() => setActive(i)}
-              onClick={() => go(r.symbol)}
               className={cx(
-                "flex w-full items-center gap-3 px-4 py-2.5 text-left",
+                "flex w-full items-center gap-3 px-4 py-2.5",
                 i === active ? "bg-terminal-hover" : "hover:bg-terminal-hover",
               )}
             >
-              <span className="tabular w-20 shrink-0 text-sm font-medium text-ink">
-                {r.symbol}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
-                {r.name}
-              </span>
-              <span className="shrink-0 rounded border border-terminal-border px-1.5 py-0.5 text-[10px] tracking-widest text-ink-faint">
-                {ASSET_LABEL[r.asset_class]}
-              </span>
-            </button>
+              <button
+                onClick={() => go(r.symbol)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <span className="tabular w-20 shrink-0 text-sm font-medium text-ink">
+                  {r.symbol}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
+                  {r.name}
+                </span>
+                <span className="shrink-0 rounded border border-terminal-border px-1.5 py-0.5 text-[10px] tracking-widest text-ink-faint">
+                  {ASSET_LABEL[r.asset_class]}
+                </span>
+              </button>
+              <WatchlistStar symbol={r.symbol} className="text-base" />
+            </div>
           ))}
 
           {/* Always offer a direct lookup of the typed symbol — covers tickers

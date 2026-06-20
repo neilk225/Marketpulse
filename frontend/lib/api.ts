@@ -1,10 +1,5 @@
 // All fetch calls to the FastAPI backend live here.
-import type {
-  HistoryPoint,
-  MoversResponse,
-  SearchResult,
-  TickerResponse,
-} from "./types";
+import type { MoversResponse, SearchResult, TickerResponse } from "./types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
@@ -72,13 +67,6 @@ export async function getTicker(symbol: string): Promise<TickerResponse> {
   return (await res.json()) as TickerResponse;
 }
 
-export async function refreshTicker(symbol: string): Promise<TickerResponse> {
-  return getJson<TickerResponse>(
-    `/api/ticker/${encodeURIComponent(symbol)}/refresh`,
-    { method: "POST" },
-  );
-}
-
 export async function searchTickers(q: string): Promise<SearchResult[]> {
   const query = q.trim();
   if (!query) return [];
@@ -86,16 +74,6 @@ export async function searchTickers(q: string): Promise<SearchResult[]> {
     `/api/search?q=${encodeURIComponent(query)}`,
   );
   return data.results;
-}
-
-export async function getHistory(
-  symbol: string,
-  days = 7,
-): Promise<HistoryPoint[]> {
-  const data = await getJson<{ history: HistoryPoint[] }>(
-    `/api/ticker/${encodeURIComponent(symbol)}/history?days=${days}`,
-  );
-  return data.history;
 }
 
 export async function getMovers(

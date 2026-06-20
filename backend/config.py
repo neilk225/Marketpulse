@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str
     COINGECKO_API_KEY: str = ""
     FINNHUB_API_KEY: str = ""
+    FMP_API_KEY: str = ""
     APP_ENV: str = "development"
 
     model_config = SettingsConfigDict(

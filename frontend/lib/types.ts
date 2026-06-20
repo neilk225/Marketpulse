@@ -41,11 +41,6 @@ export interface SearchResult {
   asset_class: AssetClass;
 }
 
-export interface HistoryPoint {
-  score: number;
-  computed_at: string;
-}
-
 export interface Mover {
   symbol: string;
   name: string;

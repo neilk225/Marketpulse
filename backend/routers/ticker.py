@@ -3,7 +3,7 @@
 Flow:
   1. Validate symbol format        -> 422 on bad format
   2. Look up ticker in DB          -> 404 if not seeded
-  3. Cache fresh (< 10 min)        -> return last stored score, stale=false
+  3. Cache fresh (< 1 hour)        -> return last stored score, stale=false
   4. Cache stale                   -> fetch news, score, persist, return
   5. No news at all                -> store score 0.5 / count 0
   6. All models unavailable        -> last stored score, stale=true, HTTP 503
