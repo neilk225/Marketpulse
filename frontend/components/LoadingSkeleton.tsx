@@ -14,15 +14,22 @@ function Panel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Header skeleton — rendered above the grid (mirrors the real ticker header) so
+ *  the grid + sidebar don't shift position when the data resolves. */
+export function TickerHeaderSkeleton() {
+  return (
+    <div className="mb-6 space-y-2">
+      <Skeleton className="h-8 w-40" />
+      <Skeleton className="h-4 w-56" />
+      <Skeleton className="h-3 w-24" />
+    </div>
+  );
+}
+
 /** Full ticker-detail skeleton — no blank screen while the score loads. */
 export function TickerSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-4 w-56" />
-      </div>
-
       <div className="grid gap-6 md:grid-cols-2">
         <Panel>
           <div className="flex flex-col items-center gap-4">

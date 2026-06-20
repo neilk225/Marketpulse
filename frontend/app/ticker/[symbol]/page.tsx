@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import ErrorState from "@/components/ErrorState";
 import HeadlineList from "@/components/HeadlineList";
-import { TickerSkeleton } from "@/components/LoadingSkeleton";
+import { TickerHeaderSkeleton, TickerSkeleton } from "@/components/LoadingSkeleton";
 import PriceChart from "@/components/PriceChart";
 import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
@@ -96,7 +96,10 @@ export default function TickerPage({
       </div>
 
       {/* Ticker header — full width above the grid so the content (Sentiment/
-          Analysis) and the right sidebar (Watchlist) start on the same line. */}
+          Analysis) and the right sidebar (Watchlist) start on the same line.
+          A matching skeleton reserves the same space while loading, so the grid
+          and sidebar don't jump when the data resolves. */}
+      {loading && <TickerHeaderSkeleton />}
       {!loading && !error && data && (
         <header className="mb-6">
           <div className="flex items-center gap-3">
