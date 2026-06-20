@@ -3,7 +3,6 @@
 export type AssetClass = "stock" | "crypto" | "commodity";
 export type SentimentLabel = "positive" | "negative" | "neutral";
 export type Confidence = "high" | "medium" | "low";
-export type Direction = "gainer" | "loser";
 
 export interface Sentiment {
   score: number;

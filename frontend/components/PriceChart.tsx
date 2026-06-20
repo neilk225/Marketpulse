@@ -48,7 +48,7 @@ export default function PriceChart({
       gridColor: "rgba(31, 35, 41, 0.6)",
     });
     container.appendChild(script);
-  }, [symbol, assetClass]);
+  }, [symbol, assetClass, height]);
 
   return (
     <div

@@ -42,12 +42,6 @@ export const SENTIMENT_SIGNAL: Record<SentimentLabel, Signal> = {
   neutral: "neutral",
 };
 
-export const SIGNAL_LABEL: Record<Signal, string> = {
-  bull: "BULLISH",
-  neutral: "NEUTRAL",
-  bear: "BEARISH",
-};
-
 // 5-band label for the gauge — same source of truth (and thus same cut points)
 // as the color, so the two always agree.
 export function scoreLabel(score: number): string {

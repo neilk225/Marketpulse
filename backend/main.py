@@ -12,9 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from models import AsyncSessionLocal, init_db
+from models import init_db
 from routers import movers, search, ticker
-from services.detection import load_known_crypto_symbols
 from services.http import aclose as close_http_client
 
 logging.basicConfig(level=logging.INFO)
@@ -23,11 +22,7 @@ logger = logging.getLogger("marketpulse")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables (idempotent) and warm the crypto-symbol set from the DB so
-    # bare symbols like BTC/ETH detect as crypto.
-    await init_db()
-    async with AsyncSessionLocal() as session:
-        await load_known_crypto_symbols(session)
+    await init_db()  # create tables (idempotent)
     logger.info("MarketPulse backend ready")
     yield
     # Shutdown: close the shared httpx client's connection pool.
