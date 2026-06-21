@@ -32,3 +32,7 @@ Thumbs.db
 
 # Internal design/spec doc — kept locally, not published in the repo
 marketpulse_spec_1.md
+
+# Third-party agent skills (installed locally via `npx skills`, not part of the app)
+.agents/
+skills-lock.json
