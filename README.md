@@ -6,7 +6,7 @@
 
 MarketPulse reads the latest headlines for any ticker, uses a sentiment pipeline to score each
 one by its likely impact on the share price and distills them into a single, confidence-weighted
-reading. Wrapped in an animated dark interface with live market
+reading. All wrapped in an animated dark interface with live market
 movers, watchlists, and price charts.
 
 
