@@ -32,15 +32,4 @@ ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurre
 | **Data** | Finnhub, Financial Modeling Prep, CoinGecko, TradingView charts |
 | **Infra** | Railway (API + Postgres), Vercel (frontend) |
 
-## Architecture
-
-```
-┌─────────────┐      REST       ┌──────────────┐     ┌───────────────────────┐
-│ Next.js UI  │ ───────────────▶│  FastAPI     │────▶│ Finnhub · FMP · Gecko │  market data
-│ (Vercel)    │◀─────────────── │  (Railway)   │────▶│ OpenRouter (LLM)      │  sentiment
-└─────────────┘    sentiment    └──────┬───────┘     └───────────────────────┘
-                                       │
-                                  PostgreSQL  (tickers, scores, headlines, movers cache)
-```
-
 <sub>Built by Neil Khetia</sub>
