@@ -28,9 +28,14 @@ Have your API keys handy (the same ones in `backend/.env`):
 ## Part 1 — Backend on Railway
 
 1. **New Project** → *Deploy from GitHub repo* → pick `Marketpulse`.
-2. Open the service → **Settings**:
-   - **Root Directory** = `backend`  ← important, the backend lives in a subfolder.
-   - Railway auto-detects Python and starts it using the `Procfile` (already in the repo).
+2. Open the service → **Settings** and set two things (skip these and the build
+   fails with *"Railpack could not determine how to build the app"*):
+   - **Root Directory** = `backend`  ← the app is in a subfolder. Without this,
+     Railway builds from the repo root, sees only `backend/` and `frontend/`
+     folders, and can't figure out what to build.
+   - **Custom Start Command** = `uvicorn main:app --host 0.0.0.0 --port $PORT`
+     Railway's builder (Railpack) installs `requirements.txt` automatically once
+     the root is right; setting the start command explicitly guarantees it boots.
 3. **Add a database**: in the project, click **New → Database → PostgreSQL**.
    Railway creates it and exposes a `DATABASE_URL`.
 4. Go to your backend service → **Variables** and add:
@@ -121,6 +126,39 @@ up front, you can set these once and skip the Part 3 back-and-forth.
 
 ---
 
+## Part 5 — A separate dev environment (develop without touching prod)
+
+The whole app is configured through environment variables, so the **same code**
+runs as dev or prod — only the variable values differ. No code changes needed.
+
+1. **Branches.** `main` = production. Use a `dev` branch for work in progress.
+2. **Railway — a parallel backend + DB.** In your project, use the environment
+   switcher (top bar) → **New Environment** → name it `dev`. It clones your
+   services. For the dev environment:
+   - Point its backend service at the **`dev` branch** (service → Settings).
+   - It gets its **own Postgres** — separate data, so dev work can't touch prod.
+     Seed it once: `python scripts/seed_tickers.py`.
+   - Set its variables (same keys; `ALLOWED_ORIGINS` = the dev frontend URL).
+3. **Vercel — automatic preview.** Vercel builds a **Preview deployment** for
+   every branch automatically, so pushing `dev` gives a preview URL. Add a
+   **Preview-scoped** `NEXT_PUBLIC_API_URL` = your dev backend URL
+   (Vercel → Settings → Environment Variables → Environment: Preview).
+4. **Local.** Point your local `backend/.env` `DATABASE_URL` at the **dev**
+   database — NEVER prod — so local testing uses throwaway data.
+
+**Workflow:** code locally → push `dev` (auto-deploys to dev) → test → merge
+`dev` → `main` (auto-deploys to prod).
+
+**Which DB URL:** for any backend running *inside* Railway, use the **private**
+`DATABASE_URL` (reference it as `${{Postgres.DATABASE_URL}}`) — free and fast on
+Railway's internal network. The **public** proxy URL (`*.proxy.rlwy.net`) is only
+for connecting from your laptop (local dev, seeding, a DB GUI).
+
+**Cost note (Hobby):** a second always-on backend + Postgres adds Railway usage
+and can exceed the $5 credit. To keep it cheap, use a free **Neon**/**Supabase**
+Postgres for dev, and/or do day-to-day work locally against that dev DB — only
+push to the dev deploy when you need to test the real deployed build.
+
 ## Quick reference — all environment variables
 
 **Railway (backend)**
@@ -143,6 +181,9 @@ NEXT_PUBLIC_API_URL=https://<your-backend-url>
 
 ## If something's wrong
 
+- **Build fails: "Railpack could not determine how to build the app"** → you
+  didn't set **Root Directory = `backend`** (Part 1, Step 2). Railway was looking
+  at the repo root instead of the backend folder.
 - **Site loads but no data / console CORS error** → `ALLOWED_ORIGINS` doesn't
   exactly match your frontend URL (check `https://`, no trailing slash).
 - **Frontend can't reach API** → `NEXT_PUBLIC_API_URL` is wrong, or you changed
