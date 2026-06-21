@@ -25,7 +25,7 @@ export default function Home() {
         <RecentTickers align="center" />
       </Reveal>
 
-      <Reveal delay={0.16} className="mt-14">
+      <Reveal delay={0.16} className="mt-12">
         <TopMovers />
       </Reveal>
 
