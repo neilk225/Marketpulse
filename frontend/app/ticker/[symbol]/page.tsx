@@ -12,6 +12,7 @@ import {
   TickerSkeleton,
 } from "@/components/LoadingSkeleton";
 import PriceChart from "@/components/PriceChart";
+import PulseMark from "@/components/PulseMark";
 import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
 import SentimentBreakdown from "@/components/SentimentBreakdown";
@@ -122,9 +123,13 @@ export default function TickerPage({
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start">
         <Link
           href="/"
-          className="shrink-0 pt-2.5 text-sm text-ink-muted hover:text-ink"
+          aria-label="MarketPulse home"
+          className="group flex shrink-0 items-center gap-2 pt-2"
         >
-          ← Home
+          <PulseMark size={46} />
+          <span className="text-2xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
+            MarketPulse
+          </span>
         </Link>
         <div className="sm:ml-auto sm:w-80">
           <SearchBar />

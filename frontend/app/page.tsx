@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import PulseMark from "@/components/PulseMark";
 import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
 import TopMovers from "@/components/TopMovers";
@@ -12,9 +13,12 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-12">
       <Reveal className="text-center">
-        <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-          MarketPulse
-        </h1>
+        <div className="flex items-center justify-center gap-3">
+          <PulseMark size={72} />
+          <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+            MarketPulse
+          </h1>
+        </div>
         <p className="mt-3 text-base text-ink-muted">
           News-driven sentiment for stocks, crypto &amp; commodities.
         </p>
