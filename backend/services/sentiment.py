@@ -97,7 +97,11 @@ async def score_headlines(
                 ),
             },
         ],
-        "max_tokens": 4096,
+        # Headroom for 30 scored headlines plus the summary. Each headline object
+        # is ~40-60 output tokens; at 4096 a verbose run could truncate the JSON
+        # and drop into the salvage path. 6144 keeps the response whole without
+        # over-allocating. (Output cap only — does not affect the input prompt.)
+        "max_tokens": 6144,
         "temperature": 0.1,
     }
     try:

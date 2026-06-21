@@ -31,7 +31,7 @@ export default function WatchlistStar({
       aria-label={on ? "Remove from watchlist" : "Add to watchlist"}
       aria-pressed={on}
       title={on ? "In watchlist" : "Add to watchlist"}
-      className={`${className} leading-none transition-colors ${
+      className={`${className} press leading-none active:scale-90 ${
         on ? "text-neutral" : "text-ink-faint hover:text-ink-muted"
       }`}
     >

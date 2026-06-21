@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-import { formatPct } from "@/lib/utils";
+import { EASE_OUT, formatPct } from "@/lib/utils";
 
 interface Props {
   positivePct: number;
@@ -47,10 +47,13 @@ export default function SentimentBreakdown({
         {ROWS.map((r, i) => (
           <motion.div
             key={r.key}
-            style={{ backgroundColor: r.color }}
-            initial={{ width: 0 }}
-            animate={{ width: `${values[r.key]}%` }}
-            transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 + i * 0.05 }}
+            // Width reserves the final layout immediately; the fill grows via a
+            // GPU transform (scaleX) rather than animating width (which paints).
+            className="origin-left"
+            style={{ backgroundColor: r.color, width: `${values[r.key]}%` }}
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.15 + i * 0.05 }}
           />
         ))}
       </div>

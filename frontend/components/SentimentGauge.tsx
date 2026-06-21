@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 
-import { formatScore, scoreHex, scoreLabel } from "@/lib/utils";
+import { EASE_IN_OUT, EASE_OUT, formatScore, scoreHex, scoreLabel } from "@/lib/utils";
 
 interface Props {
   score: number;
@@ -13,7 +13,9 @@ interface Props {
 
 const START_ANGLE = 135; // bottom-left
 const SWEEP = 270; // gap at the bottom
-const SWEEP_MS = 900;
+// Seen on every ticker open — kept snappy. Longer felt sluggish for a value the
+// user is waiting on.
+const SWEEP_MS = 600;
 
 function polar(cx: number, cy: number, r: number, deg: number) {
   const a = (deg * Math.PI) / 180;
@@ -113,7 +115,7 @@ export default function SentimentGauge({
           strokeLinecap="round"
           initial={reduce ? false : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: SWEEP_MS / 1000, ease: "easeInOut" }}
+          transition={{ duration: SWEEP_MS / 1000, ease: EASE_IN_OUT }}
         />
 
         {/* marker dot — rides the arc to the score as the value counts up */}
@@ -140,7 +142,11 @@ export default function SentimentGauge({
           style={{ color }}
           initial={reduce ? false : { opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: reduce ? 0 : SWEEP_MS / 1000 - 0.1 }}
+          transition={{
+            duration: 0.3,
+            ease: EASE_OUT,
+            delay: reduce ? 0 : SWEEP_MS / 1000 - 0.15,
+          }}
         >
           {scoreLabel(clamped)}
         </motion.span>

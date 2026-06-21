@@ -19,9 +19,10 @@ export interface Headline {
   title: string;
   url: string;
   source: string;
-  sentiment: SentimentLabel;
-  score: number;
-  confidence: Confidence;
+  // Null until the score stage runs — the preview returns headline text only.
+  sentiment: SentimentLabel | null;
+  score: number | null;
+  confidence: Confidence | null;
   published_at: string | null;
 }
 
@@ -30,6 +31,9 @@ export interface TickerResponse {
   name: string;
   asset_class: AssetClass;
   stale: boolean;
+  // True for a preview shell whose sentiment is still being scored; the client
+  // follows up with a score request to fill it in.
+  pending?: boolean;
   sentiment: Sentiment | null;
   headlines: Headline[];
 }

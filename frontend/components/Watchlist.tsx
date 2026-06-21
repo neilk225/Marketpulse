@@ -12,8 +12,9 @@ import {
 import { getCachedSentiments } from "@/lib/api";
 import { pushRecent } from "@/lib/recents";
 import { Skeleton } from "@/components/LoadingSkeleton";
+import ScoreValue from "@/components/ScoreValue";
 import type { CachedSentiment } from "@/lib/types";
-import { formatScore, scoreHex } from "@/lib/utils";
+import { EASE_OUT } from "@/lib/utils";
 
 /** localStorage watchlist sidebar. `active` highlights the ticker currently
  *  being viewed. Re-reads on same-tab mutations (WATCHLIST_EVENT) and cross-tab
@@ -99,14 +100,16 @@ export default function Watchlist({ active }: { active?: string }) {
                 layout
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
+                // Exit faster than enter — the system responding should feel
+                // snappier than the user-initiated add.
+                exit={{ opacity: 0, height: 0, transition: { duration: 0.18, ease: EASE_OUT } }}
+                transition={{ duration: 0.25, ease: EASE_OUT }}
                 className="flex items-center overflow-hidden border-b border-terminal-border last:border-0"
               >
               <Link
                 href={`/ticker/${encodeURIComponent(sym)}`}
                 onClick={() => pushRecent(sym)}
-                className={`flex flex-1 items-center gap-2 px-4 py-2 text-sm hover:bg-terminal-hover ${
+                className={`press flex flex-1 items-center gap-2 px-4 py-2 text-sm hover:bg-terminal-hover active:scale-[0.99] ${
                   sym === activeSym ? "text-ink" : "text-ink-muted"
                 }`}
               >
@@ -115,20 +118,11 @@ export default function Watchlist({ active }: { active?: string }) {
                     same space — the row never resizes as the reading resolves. */}
                 <span className="ml-auto flex w-9 justify-end text-xs">
                   {sentiments[sym] ? (
-                    <span
+                    <ScoreValue
+                      score={sentiments[sym].score}
+                      stale={sentiments[sym].stale}
                       className="tabular"
-                      style={{
-                        color: scoreHex(sentiments[sym].score),
-                        opacity: sentiments[sym].stale ? 0.6 : 1,
-                      }}
-                      title={
-                        sentiments[sym].stale
-                          ? "Last reading (may be stale)"
-                          : "Current sentiment"
-                      }
-                    >
-                      {formatScore(sentiments[sym].score)}
-                    </span>
+                    />
                   ) : sentLoading ? (
                     <Skeleton className="h-3 w-8" />
                   ) : (
@@ -144,7 +138,7 @@ export default function Watchlist({ active }: { active?: string }) {
               <button
                 onClick={() => removeFromWatchlist(sym)}
                 aria-label={`Remove ${sym} from watchlist`}
-                className="px-3 py-2 text-ink-faint hover:text-bear"
+                className="press px-3 py-2 text-ink-faint hover:text-bear active:scale-90"
               >
                 ×
               </button>

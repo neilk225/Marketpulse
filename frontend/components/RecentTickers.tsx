@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 
 import { getRecents } from "@/lib/recents";
 import { getCachedSentiments } from "@/lib/api";
+import ScoreValue from "@/components/ScoreValue";
 import type { CachedSentiment } from "@/lib/types";
-import { formatScore, scoreHex } from "@/lib/utils";
+import { EASE_OUT } from "@/lib/utils";
 
 const MotionLink = motion.create(Link);
 
@@ -20,10 +21,12 @@ export default function RecentTickers({
   exclude,
   align = "center",
   showLabel = true,
+  className = "mt-4",
 }: {
   exclude?: string;
   align?: "left" | "center" | "right";
   showLabel?: boolean;
+  className?: string;
 }) {
   const [recents, setRecents] = useState<string[]>([]);
   const [sentiments, setSentiments] = useState<
@@ -60,10 +63,18 @@ export default function RecentTickers({
   if (shown.length === 0) return null;
 
   return (
-    <div className="mt-4">
+    <div className={className}>
       {showLabel && (
-        <div className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-ink-faint">
-          Recent
+        <div
+          className={`mb-1.5 text-[10px] font-medium uppercase tracking-widest text-ink-faint ${
+            align === "right"
+              ? "text-right"
+              : align === "left"
+                ? "text-left"
+                : "text-center"
+          }`}
+        >
+          Recently searched
         </div>
       )}
       <div
@@ -82,22 +93,18 @@ export default function RecentTickers({
             className="tabular flex items-center gap-1.5 rounded border border-terminal-border px-2 py-0.5 text-xs text-ink-muted hover:bg-terminal-hover hover:text-ink"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut", delay: i * 0.04 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.25, ease: EASE_OUT, delay: i * 0.04 }}
           >
             <span>{s}</span>
             {/* Fixed-width slot: the score fades in here without widening the
                 chip, so a late reading never reflows the row. */}
             <span className="w-7 text-right">
               {sentiments[s] && (
-                <span
-                  style={{
-                    color: scoreHex(sentiments[s].score),
-                    opacity: sentiments[s].stale ? 0.6 : 1,
-                  }}
-                  title={sentiments[s].stale ? "Last reading (may be stale)" : "Current sentiment"}
-                >
-                  {formatScore(sentiments[s].score)}
-                </span>
+                <ScoreValue
+                  score={sentiments[s].score}
+                  stale={sentiments[s].stale}
+                />
               )}
             </span>
           </MotionLink>

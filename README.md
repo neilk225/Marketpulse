@@ -1,12 +1,12 @@
 # [marketpulse.fyi](https://marketpulse.fyi)
 
-**Real-time, news-driven sentiment analysis for stocks, crypto, and commodities.**
+**News-driven sentiment analysis for stocks, crypto, and commodities.**
 
 ![MarketPulse dashboard](home.png)
 
 MarketPulse reads the latest headlines for any ticker, uses a sentiment pipeline to score each
 one by its likely impact on the share price and distills them into a single, confidence-weighted
-reading. Wrapped in a fast, animated dark interface with live market
+reading. All wrapped in an animated dark interface with live market
 movers, watchlists, and price charts.
 
 
@@ -31,6 +31,5 @@ ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurre
 | **AI** | OpenRouter - Claude Haiku 4.5 (primary) + open-model fallback |
 | **Data** | Finnhub, Financial Modeling Prep, CoinGecko, TradingView charts |
 | **Infra** | Railway (API + Postgres), Vercel (frontend) |
-
 
 <sub>Built by Neil Khetia</sub>

@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import ErrorState from "@/components/ErrorState";
 import HeadlineList from "@/components/HeadlineList";
 import { Reveal } from "@/components/Motion";
-import { TickerHeaderSkeleton, TickerSkeleton } from "@/components/LoadingSkeleton";
+import {
+  Skeleton,
+  TickerHeaderSkeleton,
+  TickerSkeleton,
+} from "@/components/LoadingSkeleton";
 import PriceChart from "@/components/PriceChart";
+import PulseMark from "@/components/PulseMark";
 import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
 import SentimentBreakdown from "@/components/SentimentBreakdown";
@@ -16,7 +21,7 @@ import StaleBadge from "@/components/StaleBadge";
 import TopMovers from "@/components/TopMovers";
 import Watchlist from "@/components/Watchlist";
 import WatchlistStar from "@/components/WatchlistStar";
-import { ApiError, getTicker } from "@/lib/api";
+import { ApiError, getTickerPreview, getTickerScore } from "@/lib/api";
 import { pushRecent } from "@/lib/recents";
 import type { TickerResponse } from "@/lib/types";
 import { ASSET_LABEL, timeAgo } from "@/lib/utils";
@@ -55,19 +60,51 @@ export default function TickerPage({
   const [data, setData] = useState<TickerResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scoring, setScoring] = useState(false);
+  // Guards against a stale response from a previous symbol overwriting the
+  // current one — each load claims an id and bails if it's been superseded.
+  const reqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const myReq = ++reqRef.current;
     setLoading(true);
     setError(null);
+    setScoring(false);
+    setData(null);
+
     try {
-      const result = await getTicker(symbol);
-      setData(result);
-      pushRecent(result.symbol); // record only on a successful load
+      // Stage 1: shell (header + headline text) — paints immediately.
+      const preview = await getTickerPreview(symbol);
+      if (reqRef.current !== myReq) return;
+      setData(preview);
+      pushRecent(preview.symbol); // record only on a successful load
+      setLoading(false);
+
+      // Stage 2: the LLM score. Only needed when the preview is a pending shell;
+      // a cache hit / no-news preview already carries its final sentiment.
+      if (preview.pending) {
+        setScoring(true);
+        try {
+          const scored = await getTickerScore(symbol);
+          if (reqRef.current !== myReq) return;
+          setData(scored);
+        } catch {
+          // Score stage failed — keep the shell. Sentiment stays null and its
+          // panels fall back to the unavailable state; no full-page error.
+        } finally {
+          if (reqRef.current === myReq) setScoring(false);
+        }
+      }
     } catch (e) {
+      if (reqRef.current !== myReq) return;
       setError(
-        e instanceof ApiError ? e : new ApiError(0, "Unexpected error"),
+        e instanceof ApiError
+          ? e
+          : new ApiError(
+              0,
+              "Couldn't reach the server. Check your connection and try again.",
+            ),
       );
-    } finally {
       setLoading(false);
     }
   }, [symbol]);
@@ -82,17 +119,21 @@ export default function TickerPage({
   }, [symbol]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 md:py-10">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:py-10">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start">
         <Link
           href="/"
-          className="shrink-0 pt-2.5 text-sm text-ink-muted hover:text-ink"
+          aria-label="MarketPulse home"
+          className="group flex shrink-0 items-center gap-2 pt-2"
         >
-          ← Home
+          <PulseMark size={56} />
+          <span className="text-3xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
+            MarketPulse
+          </span>
         </Link>
         <div className="sm:ml-auto sm:w-80">
           <SearchBar />
-          <RecentTickers exclude={symbol} align="right" showLabel={false} />
+          <RecentTickers exclude={symbol} align="right" />
         </div>
       </div>
 
@@ -140,7 +181,7 @@ export default function TickerPage({
                 error.status === 404
                   ? `We couldn't find ${symbol}. Try a different symbol.`
                   : error.status === 422
-                    ? `"${symbol}" isn't a valid symbol format.`
+                    ? `"${symbol}" isn't a valid symbol. Try something like AAPL or BTC.`
                     : error.message
               }
               onRetry={
@@ -163,24 +204,36 @@ export default function TickerPage({
                       score={data.sentiment.score}
                       headlineCount={data.sentiment.headline_count}
                     />
+                  ) : scoring ? (
+                    <div className="flex flex-col items-center gap-4 py-2">
+                      <Skeleton className="h-[200px] w-[200px] rounded-full" />
+                      <p className="text-sm text-ink-muted">Scoring sentiment…</p>
+                    </div>
                   ) : (
                     <p className="py-10 text-center text-sm text-ink-muted">
-                      Live scoring unavailable and no prior score on record.
+                      Scoring is temporarily unavailable, and there&apos;s no
+                      earlier reading for this ticker.
                     </p>
                   )}
                 </Panel>
 
                 <div className="space-y-6 lg:col-span-2">
                   <Panel title="Analysis">
-                    {data.sentiment?.summary ? (
+                    {scoring && !data.sentiment ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-[92%]" />
+                        <Skeleton className="h-4 w-[78%]" />
+                      </div>
+                    ) : data.sentiment?.summary ? (
                       <p className="text-sm leading-relaxed text-ink">
                         {data.sentiment.summary}
                       </p>
                     ) : (
                       <p className="text-sm text-ink-muted">
                         {data.sentiment && data.sentiment.headline_count > 0
-                          ? "No written analysis available for this score."
-                          : "Insufficient news data for sentiment analysis."}
+                          ? "No written summary for this reading."
+                          : "Not enough recent news to score this ticker yet."}
                       </p>
                     )}
                     {data.sentiment && (
@@ -194,7 +247,16 @@ export default function TickerPage({
                   </Panel>
 
                   <Panel title="Breakdown">
-                    {data.sentiment && data.sentiment.headline_count > 0 ? (
+                    {scoring && !data.sentiment ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-2 w-full" />
+                        <div className="grid grid-cols-3 gap-2">
+                          <Skeleton className="h-8" />
+                          <Skeleton className="h-8" />
+                          <Skeleton className="h-8" />
+                        </div>
+                      </div>
+                    ) : data.sentiment && data.sentiment.headline_count > 0 ? (
                       <SentimentBreakdown
                         positivePct={data.sentiment.positive_pct}
                         negativePct={data.sentiment.negative_pct}
@@ -203,7 +265,7 @@ export default function TickerPage({
                       />
                     ) : (
                       <p className="py-2 text-sm text-ink-muted">
-                        No breakdown — insufficient news data.
+                        No breakdown — not enough recent news.
                       </p>
                     )}
                   </Panel>

@@ -4,6 +4,14 @@ import type { AssetClass, Confidence, SentimentLabel } from "./types";
 export type Signal = "bull" | "neutral" | "bear";
 
 /**
+ * Shared easing curves for Framer Motion — the same cubic-beziers defined as CSS
+ * vars in globals.css, so motion feels identical whether it's driven by CSS or
+ * JS. Built-in "easeOut"/"easeInOut" are too weak to feel intentional.
+ */
+export const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
+export const EASE_IN_OUT: [number, number, number, number] = [0.77, 0, 0.175, 1];
+
+/**
  * Aggregate score → 5-band scale. The label and the color share ONE source of
  * truth (SCORE_BANDS) so they can never disagree — previously the label had 5
  * bands but the color only 3, so a 0.57 read "SLIGHTLY BULLISH" yet was painted

@@ -55,10 +55,12 @@ const config: Config = {
         },
       },
       animation: {
-        "fade-in": "fade-in 0.4s ease-out both",
-        "fade-in-up": "fade-in-up 0.5s ease-out both",
-        "scale-in": "scale-in 0.3s ease-out both",
-        "slide-down": "slide-down 0.18s ease-out both",
+        // Strong custom ease-out (matches --ease-out in globals.css) — built-in
+        // ease-out is too weak to feel intentional.
+        "fade-in": "fade-in 0.3s cubic-bezier(0.23,1,0.32,1) both",
+        "fade-in-up": "fade-in-up 0.3s cubic-bezier(0.23,1,0.32,1) both",
+        "scale-in": "scale-in 0.25s cubic-bezier(0.23,1,0.32,1) both",
+        "slide-down": "slide-down 0.18s cubic-bezier(0.23,1,0.32,1) both",
         shimmer: "shimmer 1.6s infinite",
       },
     },
