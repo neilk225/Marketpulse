@@ -29,9 +29,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-terminal-bg text-ink antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col bg-terminal-bg text-ink antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <footer className="px-4 py-6 text-center text-[11px] text-ink-faint">
+            Built by{" "}
+            <a
+              href="https://github.com/neilk225"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-ink-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
+            >
+              Neil K.
+            </a>
+          </footer>
+        </Providers>
       </body>
     </html>
   );

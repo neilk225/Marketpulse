@@ -87,7 +87,7 @@ export default function TickerPage({
   }, [symbol]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 md:py-10">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:py-10">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start">
         <Link
           href="/"
