@@ -1,15 +1,14 @@
-# MarketPulse
+# [marketpulse.fyi](https://marketpulse.fyi)
 
 **Real-time, news-driven sentiment analysis for stocks, crypto, and commodities.**
+
+![MarketPulse dashboard](home.png)
 
 MarketPulse reads the latest headlines for any ticker, uses a sentiment pipeline to score each
 one by its likely impact on the share price and distills them into a single, confidence-weighted
 reading. Wrapped in a fast, animated dark interface with live market
 movers, watchlists, and price charts.
 
-👉 **Try it at [marketpulse.fyi](https://marketpulse.fyi)** 
-
-![MarketPulse dashboard](home.png)
 
 ## How the sentiment engine works
 
