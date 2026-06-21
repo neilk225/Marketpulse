@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/LoadingSkeleton";
 import { getMovers } from "@/lib/api";
 import { pushRecent } from "@/lib/recents";
 import type { Mover, MoversResponse } from "@/lib/types";
-import { cx, formatPrice, formatSignedPct, timeAgo } from "@/lib/utils";
+import { cx, EASE_OUT, formatPrice, formatSignedPct, timeAgo } from "@/lib/utils";
 
 type Tab = "stocks" | "crypto" | "commodities";
 const TABS: { key: Tab; label: string }[] = [
@@ -28,7 +28,8 @@ function MoverRow({ m, index }: { m: Mover; index: number }) {
       className="flex items-center gap-3 border-b border-terminal-border px-4 py-2.5 last:border-0 hover:bg-terminal-hover"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut", delay: index * 0.04 }}
+      whileTap={{ scale: 0.985 }}
+      transition={{ duration: 0.3, ease: EASE_OUT, delay: index * 0.04 }}
     >
       <div className="min-w-0 flex-1">
         <div className="tabular text-sm font-medium text-ink">{m.symbol}</div>
@@ -57,7 +58,9 @@ function MoverColumn({ rows }: { rows: Mover[] }) {
       {rows.length > 0 ? (
         rows.map((m, i) => <MoverRow key={m.symbol} m={m} index={i} />)
       ) : (
-        <div className="px-4 py-3 text-xs text-ink-faint">No data.</div>
+        <div className="px-4 py-3 text-xs text-ink-faint">
+          No movers to show right now.
+        </div>
       )}
     </div>
   );
@@ -132,7 +135,7 @@ export default function TopMovers({ stacked = false }: { stacked?: boolean }) {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cx(
-                "relative px-3 py-2.5 text-xs font-medium transition-colors",
+                "press relative px-3 py-2.5 text-xs font-medium active:scale-[0.97]",
                 tab === t.key ? "text-ink" : "text-ink-faint hover:text-ink-muted",
               )}
             >
@@ -170,7 +173,7 @@ export default function TopMovers({ stacked = false }: { stacked?: boolean }) {
         if (error)
           return (
             <div className="px-4 py-8 text-center text-sm text-ink-muted">
-              Market data temporarily unavailable.
+              Market data is temporarily unavailable. Try again in a moment.
             </div>
           );
         return (

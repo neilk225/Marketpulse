@@ -4,6 +4,11 @@
 
 :root {
   color-scheme: dark;
+  /* Strong custom easings — the built-in CSS curves are too weak to feel
+     intentional. ease-out for enter/exit, ease-in-out for on-screen movement.
+     Mirrored as JS arrays in lib/utils.ts so motion is identical in CSS + JS. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 html,
@@ -26,6 +31,19 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* Press feedback for any pressable element. Add `press` + an `active:scale-*`
+   (e.g. active:scale-[0.97], or active:scale-90 for icons) so the UI visibly
+   acknowledges every tap. Transitions transform AND the usual hover colors in
+   one declaration, so it replaces `transition-colors` where applied. The global
+   reduce-motion block above neutralizes the transform for users who opt out. */
+@layer components {
+  .press {
+    transition-property: transform, background-color, border-color, color;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
   }
 }
 

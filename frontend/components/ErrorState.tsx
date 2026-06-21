@@ -4,7 +4,7 @@ interface Props {
   onRetry?: () => void;
 }
 
-export default function ErrorState({ title = "Something went wrong", message, onRetry }: Props) {
+export default function ErrorState({ title = "Couldn't load this", message, onRetry }: Props) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-terminal-border bg-terminal-panel px-6 py-16 text-center">
       <p className="text-sm font-medium text-ink">{title}</p>
@@ -12,7 +12,7 @@ export default function ErrorState({ title = "Something went wrong", message, on
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-5 rounded border border-terminal-border px-4 py-1.5 text-sm text-ink-muted transition-colors hover:bg-terminal-hover hover:text-ink"
+          className="press mt-5 rounded border border-terminal-border px-4 py-1.5 text-sm text-ink-muted hover:bg-terminal-hover hover:text-ink active:scale-[0.97]"
         >
           Retry
         </button>

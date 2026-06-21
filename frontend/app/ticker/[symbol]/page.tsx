@@ -65,7 +65,12 @@ export default function TickerPage({
       pushRecent(result.symbol); // record only on a successful load
     } catch (e) {
       setError(
-        e instanceof ApiError ? e : new ApiError(0, "Unexpected error"),
+        e instanceof ApiError
+          ? e
+          : new ApiError(
+              0,
+              "Couldn't reach the server. Check your connection and try again.",
+            ),
       );
     } finally {
       setLoading(false);
@@ -140,7 +145,7 @@ export default function TickerPage({
                 error.status === 404
                   ? `We couldn't find ${symbol}. Try a different symbol.`
                   : error.status === 422
-                    ? `"${symbol}" isn't a valid symbol format.`
+                    ? `"${symbol}" isn't a valid symbol. Try something like AAPL or BTC.`
                     : error.message
               }
               onRetry={
@@ -165,7 +170,8 @@ export default function TickerPage({
                     />
                   ) : (
                     <p className="py-10 text-center text-sm text-ink-muted">
-                      Live scoring unavailable and no prior score on record.
+                      Scoring is temporarily unavailable, and there&apos;s no
+                      earlier reading for this ticker.
                     </p>
                   )}
                 </Panel>
@@ -179,8 +185,8 @@ export default function TickerPage({
                     ) : (
                       <p className="text-sm text-ink-muted">
                         {data.sentiment && data.sentiment.headline_count > 0
-                          ? "No written analysis available for this score."
-                          : "Insufficient news data for sentiment analysis."}
+                          ? "No written summary for this reading."
+                          : "Not enough recent news to score this ticker yet."}
                       </p>
                     )}
                     {data.sentiment && (
@@ -203,7 +209,7 @@ export default function TickerPage({
                       />
                     ) : (
                       <p className="py-2 text-sm text-ink-muted">
-                        No breakdown — insufficient news data.
+                        No breakdown — not enough recent news.
                       </p>
                     )}
                   </Panel>

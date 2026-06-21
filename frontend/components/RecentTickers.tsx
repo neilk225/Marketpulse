@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { getRecents } from "@/lib/recents";
 import { getCachedSentiments } from "@/lib/api";
 import type { CachedSentiment } from "@/lib/types";
-import { formatScore, scoreHex } from "@/lib/utils";
+import { EASE_OUT, formatScore, scoreHex } from "@/lib/utils";
 
 const MotionLink = motion.create(Link);
 
@@ -82,7 +82,8 @@ export default function RecentTickers({
             className="tabular flex items-center gap-1.5 rounded border border-terminal-border px-2 py-0.5 text-xs text-ink-muted hover:bg-terminal-hover hover:text-ink"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut", delay: i * 0.04 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.25, ease: EASE_OUT, delay: i * 0.04 }}
           >
             <span>{s}</span>
             {/* Fixed-width slot: the score fades in here without widening the

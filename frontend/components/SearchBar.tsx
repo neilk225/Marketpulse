@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import WatchlistStar from "@/components/WatchlistStar";
 import { searchTickers } from "@/lib/api";
 import type { SearchResult } from "@/lib/types";
-import { ASSET_LABEL, cx } from "@/lib/utils";
+import { ASSET_LABEL, cx, EASE_OUT } from "@/lib/utils";
 
 const DEBOUNCE_MS = 200;
 
@@ -114,7 +114,7 @@ export default function SearchBar({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search a symbol or name — AAPL, Bitcoin, Gold…"
+        placeholder="Search for a symbol or name — AAPL, Bitcoin, Gold…"
         className={cx(
           "w-full rounded-lg border border-terminal-border bg-terminal-panel outline-none placeholder:text-ink-faint focus:border-ink-faint",
           size === "lg" ? "px-5 py-4 text-base" : "px-4 py-3 text-sm",
@@ -131,10 +131,11 @@ export default function SearchBar({
             id="search-listbox"
             role="listbox"
             className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-terminal-border bg-terminal-panel shadow-xl"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            style={{ transformOrigin: "top" }}
+            transition={{ duration: 0.15, ease: EASE_OUT }}
           >
           {loading && results.length === 0 && (
             <div className="px-4 py-3 text-sm text-ink-faint">Searching…</div>
@@ -152,7 +153,7 @@ export default function SearchBar({
             >
               <button
                 onClick={() => go(r.symbol)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                className="press flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99]"
               >
                 <span className="tabular w-20 shrink-0 text-sm font-medium text-ink">
                   {r.symbol}
@@ -177,7 +178,7 @@ export default function SearchBar({
               onMouseEnter={() => setActive(results.length)}
               onClick={() => go(lookupSymbol)}
               className={cx(
-                "flex w-full items-center gap-2 border-t border-terminal-border px-4 py-2.5 text-left text-sm",
+                "press flex w-full items-center gap-2 border-t border-terminal-border px-4 py-2.5 text-left text-sm active:scale-[0.99]",
                 active === results.length
                   ? "bg-terminal-hover"
                   : "hover:bg-terminal-hover",

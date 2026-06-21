@@ -6,6 +6,7 @@ import type { Headline } from "@/lib/types";
 import {
   CONFIDENCE_LABEL,
   cx,
+  EASE_OUT,
   formatScore,
   SENTIMENT_SIGNAL,
   SIGNAL_TEXT,
@@ -31,7 +32,7 @@ function HeadlineRow({ h, index }: { h: Headline; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{
         duration: 0.3,
-        ease: "easeOut",
+        ease: EASE_OUT,
         delay: Math.min(index, 12) * 0.03,
       }}
     >
@@ -86,7 +87,7 @@ export default function HeadlineList({ headlines }: { headlines: Headline[] }) {
   if (headlines.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-sm text-ink-muted">
-        Insufficient news data for sentiment analysis
+        No recent headlines found for this ticker.
       </div>
     );
   }
