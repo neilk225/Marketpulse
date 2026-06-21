@@ -32,7 +32,7 @@ ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurre
 |---|---|
 | **Frontend** | Next.js 14 (App Router), TypeScript, Tailwind CSS, Framer Motion |
 | **Backend** | FastAPI (async), SQLAlchemy + asyncpg, PostgreSQL, httpx |
-| **AI** | OpenRouter — Claude Haiku 4.5 (primary) + open-model fallback |
+| **AI** | OpenRouter - Claude Haiku 4.5 (primary) + open-model fallback |
 | **Data** | Finnhub, Financial Modeling Prep, CoinGecko, TradingView charts |
 | **Infra** | Railway (API + Postgres), Vercel (frontend) |
 
