@@ -97,7 +97,7 @@ export default function TickerPage({
         </Link>
         <div className="sm:ml-auto sm:w-80">
           <SearchBar />
-          <RecentTickers exclude={symbol} align="right" showLabel={false} />
+          <RecentTickers exclude={symbol} align="right" />
         </div>
       </div>
 

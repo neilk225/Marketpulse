@@ -62,8 +62,16 @@ export default function RecentTickers({
   return (
     <div className="mt-4">
       {showLabel && (
-        <div className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-ink-faint">
-          Recent
+        <div
+          className={`mb-1.5 text-[10px] font-medium uppercase tracking-widest text-ink-faint ${
+            align === "right"
+              ? "text-right"
+              : align === "left"
+                ? "text-left"
+                : "text-center"
+          }`}
+        >
+          Recently searched
         </div>
       )}
       <div

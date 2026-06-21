@@ -22,13 +22,10 @@ export default function Home() {
 
       <Reveal delay={0.08} className="mx-auto mt-10 w-full max-w-2xl">
         <SearchBar autoFocus size="lg" />
-        <RecentTickers align="center" showLabel={false} />
+        <RecentTickers align="center" />
       </Reveal>
 
       <Reveal delay={0.16} className="mt-14">
-        <h2 className="mb-3 text-[11px] font-medium uppercase tracking-widest text-ink-faint">
-          Top Movers
-        </h2>
         <TopMovers />
       </Reveal>
 
