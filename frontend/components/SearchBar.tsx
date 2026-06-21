@@ -117,7 +117,7 @@ export default function SearchBar({
         placeholder="Search for a symbol or name — AAPL, Bitcoin, Gold…"
         className={cx(
           "w-full rounded-lg border border-terminal-border bg-terminal-panel outline-none placeholder:text-ink-faint focus:border-ink-faint",
-          size === "lg" ? "px-5 py-4 text-base" : "px-4 py-3 text-sm",
+          size === "lg" ? "px-5 py-4 text-center text-base" : "px-4 py-3 text-sm",
         )}
         role="combobox"
         aria-expanded={showDropdown}

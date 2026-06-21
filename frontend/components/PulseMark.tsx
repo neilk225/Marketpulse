@@ -40,27 +40,24 @@ export default function PulseMark({ size = 56 }: { size?: number }) {
         transition={{ duration: 0.9, ease: EASE_IN_OUT }}
       />
 
-      {/* Live ping ring — a soft ripple out of the peak dot, on a loop. Fades in
-          AND out and expands with a gentle deceleration. Scale is a pure GPU
-          transform (no non-scaling-stroke, which forces a per-frame repaint and
-          makes the loop stutter); a thin base stroke keeps it delicate. */}
+      {/* Live pulse — a filled glow that expands out of the peak dot and fades,
+          on a loop (Tailwind animate-ping style). Filled, not a hollow ring, so it
+          reads as a halo behind the solid dot rather than a detached empty circle.
+          Single 2-keyframe easeOut on a pure GPU scale transform = smooth. */}
       {!reduce && (
         <motion.circle
           cx={DOT.cx}
           cy={DOT.cy}
           r={DOT.r}
-          fill="none"
-          stroke="#10b981"
-          strokeWidth={1}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: [0.8, 1.7, 2.6], opacity: [0, 0.5, 0] }}
+          fill="#10b981"
+          initial={{ scale: 1, opacity: 0 }}
+          animate={{ scale: [1, 2.2], opacity: [0.45, 0] }}
           transition={{
-            duration: 2.4,
+            duration: 1.3,
             ease: "easeOut",
-            times: [0, 0.5, 1],
             repeat: Infinity,
-            repeatDelay: 0.4,
-            delay: 1,
+            repeatDelay: 0.25,
+            delay: 1.1,
           }}
           style={dotCenter}
         />
@@ -74,7 +71,7 @@ export default function PulseMark({ size = 56 }: { size?: number }) {
         fill="#10b981"
         initial={reduce ? false : { scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.3, ease: EASE_OUT, delay: reduce ? 0 : 0.85 }}
+        transition={{ duration: 0.3, ease: EASE_OUT, delay: reduce ? 0 : 0.9 }}
         style={dotCenter}
       />
     </svg>

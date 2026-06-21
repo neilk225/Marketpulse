@@ -21,10 +21,12 @@ export default function RecentTickers({
   exclude,
   align = "center",
   showLabel = true,
+  className = "mt-4",
 }: {
   exclude?: string;
   align?: "left" | "center" | "right";
   showLabel?: boolean;
+  className?: string;
 }) {
   const [recents, setRecents] = useState<string[]>([]);
   const [sentiments, setSentiments] = useState<
@@ -61,7 +63,7 @@ export default function RecentTickers({
   if (shown.length === 0) return null;
 
   return (
-    <div className="mt-4">
+    <div className={className}>
       {showLabel && (
         <div
           className={`mb-1.5 text-[10px] font-medium uppercase tracking-widest text-ink-faint ${

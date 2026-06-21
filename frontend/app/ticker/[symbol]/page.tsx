@@ -126,8 +126,8 @@ export default function TickerPage({
           aria-label="MarketPulse home"
           className="group flex shrink-0 items-center gap-2 pt-2"
         >
-          <PulseMark size={46} />
-          <span className="text-2xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
+          <PulseMark size={56} />
+          <span className="text-3xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
             MarketPulse
           </span>
         </Link>
