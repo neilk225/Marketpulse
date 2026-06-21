@@ -157,7 +157,8 @@ async def fetch_headlines(
 
     headlines: list[dict] = [h for group in await asyncio.gather(*tasks) for h in group]
 
-    # Deduplicate by title, cap at 30
+    # Deduplicate by title, cap at 30 — past that, extra headlines just bloat the
+    # prompt to the model (more input tokens, diminishing accuracy) for little gain.
     seen: set[str] = set()
     unique: list[dict] = []
     for h in headlines:

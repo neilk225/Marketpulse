@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import ErrorState from "@/components/ErrorState";
 import HeadlineList from "@/components/HeadlineList";
 import { Reveal } from "@/components/Motion";
-import { TickerHeaderSkeleton, TickerSkeleton } from "@/components/LoadingSkeleton";
+import {
+  Skeleton,
+  TickerHeaderSkeleton,
+  TickerSkeleton,
+} from "@/components/LoadingSkeleton";
 import PriceChart from "@/components/PriceChart";
 import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
@@ -16,7 +20,7 @@ import StaleBadge from "@/components/StaleBadge";
 import TopMovers from "@/components/TopMovers";
 import Watchlist from "@/components/Watchlist";
 import WatchlistStar from "@/components/WatchlistStar";
-import { ApiError, getTicker } from "@/lib/api";
+import { ApiError, getTickerPreview, getTickerScore } from "@/lib/api";
 import { pushRecent } from "@/lib/recents";
 import type { TickerResponse } from "@/lib/types";
 import { ASSET_LABEL, timeAgo } from "@/lib/utils";
@@ -55,15 +59,43 @@ export default function TickerPage({
   const [data, setData] = useState<TickerResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scoring, setScoring] = useState(false);
+  // Guards against a stale response from a previous symbol overwriting the
+  // current one — each load claims an id and bails if it's been superseded.
+  const reqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const myReq = ++reqRef.current;
     setLoading(true);
     setError(null);
+    setScoring(false);
+    setData(null);
+
     try {
-      const result = await getTicker(symbol);
-      setData(result);
-      pushRecent(result.symbol); // record only on a successful load
+      // Stage 1: shell (header + headline text) — paints immediately.
+      const preview = await getTickerPreview(symbol);
+      if (reqRef.current !== myReq) return;
+      setData(preview);
+      pushRecent(preview.symbol); // record only on a successful load
+      setLoading(false);
+
+      // Stage 2: the LLM score. Only needed when the preview is a pending shell;
+      // a cache hit / no-news preview already carries its final sentiment.
+      if (preview.pending) {
+        setScoring(true);
+        try {
+          const scored = await getTickerScore(symbol);
+          if (reqRef.current !== myReq) return;
+          setData(scored);
+        } catch {
+          // Score stage failed — keep the shell. Sentiment stays null and its
+          // panels fall back to the unavailable state; no full-page error.
+        } finally {
+          if (reqRef.current === myReq) setScoring(false);
+        }
+      }
     } catch (e) {
+      if (reqRef.current !== myReq) return;
       setError(
         e instanceof ApiError
           ? e
@@ -72,7 +104,6 @@ export default function TickerPage({
               "Couldn't reach the server. Check your connection and try again.",
             ),
       );
-    } finally {
       setLoading(false);
     }
   }, [symbol]);
@@ -168,6 +199,11 @@ export default function TickerPage({
                       score={data.sentiment.score}
                       headlineCount={data.sentiment.headline_count}
                     />
+                  ) : scoring ? (
+                    <div className="flex flex-col items-center gap-4 py-2">
+                      <Skeleton className="h-[200px] w-[200px] rounded-full" />
+                      <p className="text-sm text-ink-muted">Scoring sentiment…</p>
+                    </div>
                   ) : (
                     <p className="py-10 text-center text-sm text-ink-muted">
                       Scoring is temporarily unavailable, and there&apos;s no
@@ -178,7 +214,13 @@ export default function TickerPage({
 
                 <div className="space-y-6 lg:col-span-2">
                   <Panel title="Analysis">
-                    {data.sentiment?.summary ? (
+                    {scoring && !data.sentiment ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-[92%]" />
+                        <Skeleton className="h-4 w-[78%]" />
+                      </div>
+                    ) : data.sentiment?.summary ? (
                       <p className="text-sm leading-relaxed text-ink">
                         {data.sentiment.summary}
                       </p>
@@ -200,7 +242,16 @@ export default function TickerPage({
                   </Panel>
 
                   <Panel title="Breakdown">
-                    {data.sentiment && data.sentiment.headline_count > 0 ? (
+                    {scoring && !data.sentiment ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-2 w-full" />
+                        <div className="grid grid-cols-3 gap-2">
+                          <Skeleton className="h-8" />
+                          <Skeleton className="h-8" />
+                          <Skeleton className="h-8" />
+                        </div>
+                      </div>
+                    ) : data.sentiment && data.sentiment.headline_count > 0 ? (
                       <SentimentBreakdown
                         positivePct={data.sentiment.positive_pct}
                         negativePct={data.sentiment.negative_pct}

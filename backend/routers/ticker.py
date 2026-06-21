@@ -1,10 +1,22 @@
-"""GET /api/ticker/{symbol} — cache-aware sentiment pipeline.
+"""Cache-aware sentiment pipeline for a single ticker.
 
-Flow:
+Served as two stages so the page can paint before the (slow) LLM call finishes:
+
+  GET /api/ticker/{symbol}/preview  — resolve/seed, fetch headlines, return the
+      shell (header + unscored headlines) immediately. On a cache hit it returns
+      the full stored payload instead, so the client skips the score call.
+  GET /api/ticker/{symbol}/score    — run the LLM on those headlines, persist,
+      return the scored payload (gauge / analysis / breakdown + per-headline
+      sentiment). Reuses preview's fetched headlines via a short-TTL stash.
+
+  GET /api/ticker/{symbol}          — the combined one-shot (both stages in one
+      request); kept for non-progressive callers.
+
+Shared flow within a stage:
   1. Validate symbol format        -> 422 on bad format
-  2. Look up ticker in DB          -> 404 if not seeded
+  2. Look up / resolve+seed ticker -> 404 if unresolvable
   3. Cache fresh (< 1 hour)        -> return last stored score, stale=false
-  4. Cache stale                   -> fetch news, score, persist, return
+  4. Over daily scoring cap        -> last stored score, stale=true, HTTP 503
   5. No news at all                -> store score 0.5 / count 0
   6. All models unavailable        -> last stored score, stale=true, HTTP 503
 """
@@ -13,6 +25,7 @@ from __future__ import annotations
 import difflib
 import logging
 import re
+import time
 from datetime import datetime, UTC
 
 from fastapi import APIRouter, Depends, Query
@@ -97,6 +110,7 @@ def _build_payload(
     score: SentimentScore | None,
     headlines: list[Headline],
     stale: bool,
+    pending: bool = False,
 ) -> dict:
     if score is None:
         sentiment = None
@@ -116,6 +130,7 @@ def _build_payload(
         "name": ticker.name,
         "asset_class": ticker.asset_class,
         "stale": stale,
+        "pending": pending,
         "sentiment": sentiment,
         "headlines": [
             {
@@ -130,6 +145,58 @@ def _build_payload(
             for h in headlines
         ],
     }
+
+
+def _preview_payload(ticker: Ticker, raw_headlines: list[dict]) -> dict:
+    """The pre-scoring shell: ticker meta + headline text, no sentiment yet.
+
+    ``pending: true`` tells the client a score request will fill in the gauge.
+    Per-headline sentiment/score/confidence are null until the LLM runs."""
+    return {
+        "symbol": ticker.symbol,
+        "name": ticker.name,
+        "asset_class": ticker.asset_class,
+        "stale": False,
+        "pending": True,
+        "sentiment": None,
+        "headlines": [
+            {
+                "title": h.get("title", ""),
+                "url": h.get("url") or "",
+                "source": h.get("source") or "google_news",
+                "sentiment": None,
+                "score": None,
+                "confidence": None,
+                "published_at": (
+                    iso(dt) if (dt := parse_published(h.get("published_at"))) else None
+                ),
+            }
+            for h in raw_headlines
+        ],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Raw-headline stash — hands the headlines fetched in /preview to /score so the
+# two stages don't each hit the news feeds. In-process and short-lived; on a
+# miss (expired, or a different worker served /preview) /score just refetches.
+# --------------------------------------------------------------------------- #
+_RAW_STASH: dict[str, tuple[float, list[dict]]] = {}
+_STASH_TTL = 120.0  # seconds
+
+
+def _stash_put(symbol: str, headlines: list[dict]) -> None:
+    _RAW_STASH[symbol] = (time.monotonic(), headlines)
+
+
+def _stash_pop(symbol: str) -> list[dict] | None:
+    item = _RAW_STASH.pop(symbol, None)
+    if item is None:
+        return None
+    ts, headlines = item
+    if time.monotonic() - ts > _STASH_TTL:
+        return None
+    return headlines
 
 
 # --------------------------------------------------------------------------- #
@@ -215,103 +282,192 @@ async def _persist(
 
 
 # --------------------------------------------------------------------------- #
-# Endpoint
+# Stage helpers — shared by /preview, /score and the combined endpoint
 # --------------------------------------------------------------------------- #
-@router.get("/ticker/{symbol}")
-async def get_ticker(
-    symbol: str,
-    session: AsyncSession = Depends(get_session),
-):
+def _validate_symbol(symbol: str) -> JSONResponse | None:
     if not SYMBOL_RE.match(symbol):
         return JSONResponse(
             status_code=422,
             content={"error": "Invalid symbol format", "symbol": symbol},
         )
+    return None
 
-    symbol = symbol.upper().strip()
+
+async def _resolve_or_seed(
+    session: AsyncSession, symbol: str
+) -> Ticker | JSONResponse:
+    """Return the ticker, seeding it on demand. Resolving any valid equity/ETF/
+    future/crypto keeps coverage open beyond the seeded set without a re-seed.
+    Returns a 404 JSONResponse if the symbol can't be resolved."""
+    ticker = await _get_ticker(session, symbol)
+    if ticker is not None:
+        return ticker
+    resolved = await resolve_symbol(symbol)
+    if resolved is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Ticker not found", "symbol": symbol},
+        )
+    await session.execute(
+        pg_insert(Ticker)
+        .values(resolved)
+        .on_conflict_do_nothing(index_elements=["symbol"])
+    )
+    await session.commit()
     ticker = await _get_ticker(session, symbol)
     if ticker is None:
-        # Not seeded — try to resolve it on demand (any valid equity/ETF/future/
-        # crypto), seed it, then proceed. Keeps coverage open beyond the 610
-        # seeded tickers without a full re-seed.
-        resolved = await resolve_symbol(symbol)
-        if resolved is None:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Ticker not found", "symbol": symbol},
-            )
-        await session.execute(
-            pg_insert(Ticker)
-            .values(resolved)
-            .on_conflict_do_nothing(index_elements=["symbol"])
-        )
-        await session.commit()
-        ticker = await _get_ticker(session, symbol)
-        if ticker is None:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Ticker not found", "symbol": symbol},
-            )
-
-    # ---- cache hit -------------------------------------------------------- #
-    if is_cache_fresh(ticker):
-        score = await _latest_score(session, ticker.id)
-        headlines = (
-            await _headlines_for_score(session, score.id) if score else []
-        )
-        return _build_payload(ticker, score, headlines, stale=False)
-
-    # ---- daily cost cap --------------------------------------------------- #
-    # Stale cache + over the global daily scoring ceiling: refuse a new (paid)
-    # scoring and serve the last stored score as stale. Checked before any news
-    # fetch so a capped request does zero upstream work. New tickers with no
-    # prior score fall through to a null-sentiment stale payload.
-    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
-        logger.warning(
-            "daily scoring cap (%d) reached — serving %s stale",
-            settings.SCORING_DAILY_CAP,
-            symbol,
-        )
-        last = await _latest_score(session, ticker.id)
-        headlines = (
-            await _headlines_for_score(session, last.id) if last else []
-        )
         return JSONResponse(
-            status_code=503,
-            content=_build_payload(ticker, last, headlines, stale=True),
+            status_code=404,
+            content={"error": "Ticker not found", "symbol": symbol},
         )
+    return ticker
 
-    # ---- cache miss: run pipeline ---------------------------------------- #
-    raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
 
-    # No news from any feed -> store a neutral 0.5 score with 0 headlines.
-    if not raw_headlines:
-        aggregate = compute_aggregate([])
-        score, headlines = await _persist(
-            session, ticker, aggregate, "none", [], []
-        )
-        return _build_payload(ticker, score, headlines, stale=False)
+async def _fresh_payload(session: AsyncSession, ticker: Ticker) -> dict:
+    """Cache hit: the latest stored score with its headlines, stale=false."""
+    score = await _latest_score(session, ticker.id)
+    headlines = await _headlines_for_score(session, score.id) if score else []
+    return _build_payload(ticker, score, headlines, stale=False)
 
-    # Score via OpenRouter; fall back to last stored score on failure.
+
+async def _stale_503(session: AsyncSession, ticker: Ticker) -> JSONResponse:
+    """Serve the last stored score as stale (HTTP 503) — used when over the daily
+    cap or when every model is unavailable."""
+    last = await _latest_score(session, ticker.id)
+    headlines = await _headlines_for_score(session, last.id) if last else []
+    return JSONResponse(
+        status_code=503,
+        content=_build_payload(ticker, last, headlines, stale=True),
+    )
+
+
+async def _persist_no_news(session: AsyncSession, ticker: Ticker) -> dict:
+    """No news from any feed -> store a neutral 0.5 score with 0 headlines."""
+    aggregate = compute_aggregate([])
+    score, headlines = await _persist(session, ticker, aggregate, "none", [], [])
+    return _build_payload(ticker, score, headlines, stale=False)
+
+
+async def _score_and_persist(
+    session: AsyncSession, ticker: Ticker, raw_headlines: list[dict]
+) -> dict | JSONResponse:
+    """Run the LLM on already-fetched headlines, persist, return the payload.
+    Falls back to the last stored score (stale 503) if scoring is unavailable."""
     try:
         scored, model_used, summary = await score_headlines(
-            raw_headlines, symbol, ticker.name, ticker.asset_class
+            raw_headlines, ticker.symbol, ticker.name, ticker.asset_class
         )
     except SentimentUnavailable:
-        last = await _latest_score(session, ticker.id)
-        headlines = (
-            await _headlines_for_score(session, last.id) if last else []
-        )
-        return JSONResponse(
-            status_code=503,
-            content=_build_payload(ticker, last, headlines, stale=True),
-        )
-
+        return await _stale_503(session, ticker)
     aggregate = compute_aggregate(scored)
     score, headlines = await _persist(
         session, ticker, aggregate, model_used, scored, raw_headlines, summary
     )
     return _build_payload(ticker, score, headlines, stale=False)
+
+
+def _over_daily_cap_log(symbol: str) -> None:
+    logger.warning(
+        "daily scoring cap (%d) reached — serving %s stale",
+        settings.SCORING_DAILY_CAP,
+        symbol,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Endpoints
+# --------------------------------------------------------------------------- #
+@router.get("/ticker/{symbol}/preview")
+async def get_ticker_preview(
+    symbol: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Stage 1: paint-ready shell. Returns ticker meta + unscored headlines fast.
+    On a cache hit (or no-news) it returns the final payload instead, so the
+    client can tell from ``pending``/``sentiment`` whether a score call is needed.
+    """
+    if (bad := _validate_symbol(symbol)) is not None:
+        return bad
+    symbol = symbol.upper().strip()
+    ticker = await _resolve_or_seed(session, symbol)
+    if isinstance(ticker, JSONResponse):
+        return ticker
+
+    if is_cache_fresh(ticker):
+        return await _fresh_payload(session, ticker)
+
+    # Over the cap: no scoring will happen, so there's nothing to preview toward.
+    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
+        _over_daily_cap_log(symbol)
+        return await _stale_503(session, ticker)
+
+    raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
+    _stash_put(symbol, raw_headlines)
+    if not raw_headlines:
+        # Terminal state — no score call needed, return the final no-news payload.
+        return await _persist_no_news(session, ticker)
+    return _preview_payload(ticker, raw_headlines)
+
+
+@router.get("/ticker/{symbol}/score")
+async def get_ticker_score(
+    symbol: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Stage 2: the LLM scoring. Reuses /preview's fetched headlines from the
+    stash (refetching on a miss), persists, and returns the scored payload."""
+    if (bad := _validate_symbol(symbol)) is not None:
+        return bad
+    symbol = symbol.upper().strip()
+    ticker = await _resolve_or_seed(session, symbol)
+    if isinstance(ticker, JSONResponse):
+        return ticker
+
+    # A concurrent request (or the preview's no-news persist) may have populated
+    # a fresh score between preview and now — serve it rather than re-scoring.
+    if is_cache_fresh(ticker):
+        return await _fresh_payload(session, ticker)
+
+    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
+        _over_daily_cap_log(symbol)
+        return await _stale_503(session, ticker)
+
+    raw_headlines = _stash_pop(symbol)
+    if raw_headlines is None:
+        raw_headlines = await fetch_headlines(
+            symbol, ticker.asset_class, ticker.name
+        )
+    if not raw_headlines:
+        return await _persist_no_news(session, ticker)
+    return await _score_and_persist(session, ticker, raw_headlines)
+
+
+@router.get("/ticker/{symbol}")
+async def get_ticker(
+    symbol: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Combined one-shot: fetch + score in a single request. Equivalent to
+    /preview followed by /score, for callers that don't stage the render."""
+    if (bad := _validate_symbol(symbol)) is not None:
+        return bad
+    symbol = symbol.upper().strip()
+    ticker = await _resolve_or_seed(session, symbol)
+    if isinstance(ticker, JSONResponse):
+        return ticker
+
+    if is_cache_fresh(ticker):
+        return await _fresh_payload(session, ticker)
+
+    # Checked before any news fetch so a capped request does zero upstream work.
+    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
+        _over_daily_cap_log(symbol)
+        return await _stale_503(session, ticker)
+
+    raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
+    if not raw_headlines:
+        return await _persist_no_news(session, ticker)
+    return await _score_and_persist(session, ticker, raw_headlines)
 
 
 # --------------------------------------------------------------------------- #

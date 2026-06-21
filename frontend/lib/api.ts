@@ -43,14 +43,17 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * GET /api/ticker/{symbol}
+ * Shared fetch for the ticker stages.
  *
  * Note: a 503 from the backend still carries a full payload (last stored score
  * with `stale: true`), so we parse it as success rather than throwing. Only
  * 404 (not found) and 422 (bad symbol) surface as errors.
  */
-export async function getTicker(symbol: string): Promise<TickerResponse> {
-  const path = `/api/ticker/${encodeURIComponent(symbol)}`;
+async function fetchTickerStage(
+  symbol: string,
+  stage: "" | "/preview" | "/score",
+): Promise<TickerResponse> {
+  const path = `/api/ticker/${encodeURIComponent(symbol)}${stage}`;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
@@ -70,6 +73,25 @@ export async function getTicker(symbol: string): Promise<TickerResponse> {
     throw new ApiError(res.status, `Request failed (${res.status})`, symbol);
   }
   return (await res.json()) as TickerResponse;
+}
+
+/** GET /api/ticker/{symbol} — combined fetch + score in one request. */
+export function getTicker(symbol: string): Promise<TickerResponse> {
+  return fetchTickerStage(symbol, "");
+}
+
+/**
+ * GET /api/ticker/{symbol}/preview — fast shell: ticker meta + unscored
+ * headlines. If `pending` is false the payload is already final (cache hit or
+ * no news), so no score call is needed.
+ */
+export function getTickerPreview(symbol: string): Promise<TickerResponse> {
+  return fetchTickerStage(symbol, "/preview");
+}
+
+/** GET /api/ticker/{symbol}/score — runs the LLM and returns the scored payload. */
+export function getTickerScore(symbol: string): Promise<TickerResponse> {
+  return fetchTickerStage(symbol, "/score");
 }
 
 export async function searchTickers(q: string): Promise<SearchResult[]> {

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-import type { Headline } from "@/lib/types";
+import type { Confidence, Headline, SentimentLabel } from "@/lib/types";
 import {
   CONFIDENCE_LABEL,
   cx,
@@ -21,7 +21,9 @@ const SENTIMENT_DOT: Record<string, string> = {
 };
 
 function HeadlineRow({ h, index }: { h: Headline; index: number }) {
-  const signal = SENTIMENT_SIGNAL[h.sentiment];
+  // Before the score stage runs, sentiment/score/confidence are null — show the
+  // headline text now and let the signal chips fill in once scoring returns.
+  const scored = h.sentiment !== null;
   const hasLink = Boolean(h.url);
   const TitleTag = hasLink ? "a" : "span";
 
@@ -40,7 +42,9 @@ function HeadlineRow({ h, index }: { h: Headline; index: number }) {
         <span
           className={cx(
             "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-            SENTIMENT_DOT[h.sentiment],
+            scored
+              ? SENTIMENT_DOT[h.sentiment as SentimentLabel]
+              : "animate-pulse bg-ink-faint/40",
           )}
           aria-hidden
         />
@@ -60,14 +64,27 @@ function HeadlineRow({ h, index }: { h: Headline; index: number }) {
             <span className="rounded border border-terminal-border px-1.5 py-0.5 text-ink-muted">
               {sourceLabel(h.source)}
             </span>
-            <span className={cx("font-medium", SIGNAL_TEXT[signal])}>
-              {h.sentiment.toUpperCase()}
-            </span>
-            <span className="tabular text-ink-faint">
-              {formatScore(h.score)}
-            </span>
-            <span className="text-ink-faint">·</span>
-            <span className="text-ink-faint">{CONFIDENCE_LABEL[h.confidence]}</span>
+            {scored ? (
+              <>
+                <span
+                  className={cx(
+                    "font-medium",
+                    SIGNAL_TEXT[SENTIMENT_SIGNAL[h.sentiment as SentimentLabel]],
+                  )}
+                >
+                  {(h.sentiment as SentimentLabel).toUpperCase()}
+                </span>
+                <span className="tabular text-ink-faint">
+                  {formatScore(h.score as number)}
+                </span>
+                <span className="text-ink-faint">·</span>
+                <span className="text-ink-faint">
+                  {CONFIDENCE_LABEL[h.confidence as Confidence]}
+                </span>
+              </>
+            ) : (
+              <span className="text-ink-faint">Scoring…</span>
+            )}
             {h.published_at && (
               <>
                 <span className="text-ink-faint">·</span>
