@@ -9,10 +9,7 @@ movers, watchlists, and price charts.
 
 👉 **Try it at [marketpulse.fyi](https://marketpulse.fyi)** 
 
-<!-- Highest-impact addition: screenshot the live app, save it to docs/screenshot.png,
-     then uncomment the line below so it renders here.
-![MarketPulse dashboard](docs/screenshot.png)
--->
+![MarketPulse dashboard](home.png)
 
 ## How the sentiment engine works
 
