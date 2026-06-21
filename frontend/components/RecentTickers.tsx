@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 
 import { getRecents } from "@/lib/recents";
 import { getCachedSentiments } from "@/lib/api";
+import ScoreValue from "@/components/ScoreValue";
 import type { CachedSentiment } from "@/lib/types";
-import { EASE_OUT, formatScore, scoreHex } from "@/lib/utils";
+import { EASE_OUT } from "@/lib/utils";
 
 const MotionLink = motion.create(Link);
 
@@ -98,15 +99,10 @@ export default function RecentTickers({
                 chip, so a late reading never reflows the row. */}
             <span className="w-7 text-right">
               {sentiments[s] && (
-                <span
-                  style={{
-                    color: scoreHex(sentiments[s].score),
-                    opacity: sentiments[s].stale ? 0.6 : 1,
-                  }}
-                  title={sentiments[s].stale ? "Last reading (may be stale)" : "Current sentiment"}
-                >
-                  {formatScore(sentiments[s].score)}
-                </span>
+                <ScoreValue
+                  score={sentiments[s].score}
+                  stale={sentiments[s].stale}
+                />
               )}
             </span>
           </MotionLink>

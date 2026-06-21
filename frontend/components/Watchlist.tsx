@@ -12,8 +12,9 @@ import {
 import { getCachedSentiments } from "@/lib/api";
 import { pushRecent } from "@/lib/recents";
 import { Skeleton } from "@/components/LoadingSkeleton";
+import ScoreValue from "@/components/ScoreValue";
 import type { CachedSentiment } from "@/lib/types";
-import { EASE_OUT, formatScore, scoreHex } from "@/lib/utils";
+import { EASE_OUT } from "@/lib/utils";
 
 /** localStorage watchlist sidebar. `active` highlights the ticker currently
  *  being viewed. Re-reads on same-tab mutations (WATCHLIST_EVENT) and cross-tab
@@ -117,20 +118,11 @@ export default function Watchlist({ active }: { active?: string }) {
                     same space — the row never resizes as the reading resolves. */}
                 <span className="ml-auto flex w-9 justify-end text-xs">
                   {sentiments[sym] ? (
-                    <span
+                    <ScoreValue
+                      score={sentiments[sym].score}
+                      stale={sentiments[sym].stale}
                       className="tabular"
-                      style={{
-                        color: scoreHex(sentiments[sym].score),
-                        opacity: sentiments[sym].stale ? 0.6 : 1,
-                      }}
-                      title={
-                        sentiments[sym].stale
-                          ? "Last reading (may be stale)"
-                          : "Current sentiment"
-                      }
-                    >
-                      {formatScore(sentiments[sym].score)}
-                    </span>
+                    />
                   ) : sentLoading ? (
                     <Skeleton className="h-3 w-8" />
                   ) : (

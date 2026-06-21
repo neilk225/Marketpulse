@@ -51,7 +51,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
  */
 async function fetchTickerStage(
   symbol: string,
-  stage: "" | "/preview" | "/score",
+  stage: "/preview" | "/score",
 ): Promise<TickerResponse> {
   const path = `/api/ticker/${encodeURIComponent(symbol)}${stage}`;
   let res: Response;
@@ -73,11 +73,6 @@ async function fetchTickerStage(
     throw new ApiError(res.status, `Request failed (${res.status})`, symbol);
   }
   return (await res.json()) as TickerResponse;
-}
-
-/** GET /api/ticker/{symbol} — combined fetch + score in one request. */
-export function getTicker(symbol: string): Promise<TickerResponse> {
-  return fetchTickerStage(symbol, "");
 }
 
 /**

@@ -374,6 +374,33 @@ def _over_daily_cap_log(symbol: str) -> None:
     )
 
 
+async def _resolve_and_gate(
+    session: AsyncSession, symbol: str
+) -> Ticker | JSONResponse | dict:
+    """Shared front half of the three ticker endpoints.
+
+    Returns the ``Ticker`` to score, OR a ready response (a fresh/stale payload
+    dict or a JSONResponse) the caller should return as-is. The four early exits
+    are identical across /preview, /score and the combined endpoint:
+      bad symbol format -> 422  ·  unresolvable -> 404
+      cache fresh       -> last stored score (stale=false)
+      over daily cap    -> last stored score (stale=true, 503)
+    On the proceed path ``ticker.symbol`` is the canonical (normalized) symbol.
+    """
+    if (bad := _validate_symbol(symbol)) is not None:
+        return bad
+    symbol = symbol.upper().strip()
+    ticker = await _resolve_or_seed(session, symbol)
+    if isinstance(ticker, JSONResponse):
+        return ticker
+    if is_cache_fresh(ticker):
+        return await _fresh_payload(session, ticker)
+    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
+        _over_daily_cap_log(symbol)
+        return await _stale_503(session, ticker)
+    return ticker
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -386,23 +413,15 @@ async def get_ticker_preview(
     On a cache hit (or no-news) it returns the final payload instead, so the
     client can tell from ``pending``/``sentiment`` whether a score call is needed.
     """
-    if (bad := _validate_symbol(symbol)) is not None:
-        return bad
-    symbol = symbol.upper().strip()
-    ticker = await _resolve_or_seed(session, symbol)
-    if isinstance(ticker, JSONResponse):
-        return ticker
+    gated = await _resolve_and_gate(session, symbol)
+    if not isinstance(gated, Ticker):
+        return gated
+    ticker = gated
 
-    if is_cache_fresh(ticker):
-        return await _fresh_payload(session, ticker)
-
-    # Over the cap: no scoring will happen, so there's nothing to preview toward.
-    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
-        _over_daily_cap_log(symbol)
-        return await _stale_503(session, ticker)
-
-    raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
-    _stash_put(symbol, raw_headlines)
+    raw_headlines = await fetch_headlines(
+        ticker.symbol, ticker.asset_class, ticker.name
+    )
+    _stash_put(ticker.symbol, raw_headlines)
     if not raw_headlines:
         # Terminal state — no score call needed, return the final no-news payload.
         return await _persist_no_news(session, ticker)
@@ -415,27 +434,20 @@ async def get_ticker_score(
     session: AsyncSession = Depends(get_session),
 ):
     """Stage 2: the LLM scoring. Reuses /preview's fetched headlines from the
-    stash (refetching on a miss), persists, and returns the scored payload."""
-    if (bad := _validate_symbol(symbol)) is not None:
-        return bad
-    symbol = symbol.upper().strip()
-    ticker = await _resolve_or_seed(session, symbol)
-    if isinstance(ticker, JSONResponse):
-        return ticker
+    stash (refetching on a miss), persists, and returns the scored payload.
 
-    # A concurrent request (or the preview's no-news persist) may have populated
-    # a fresh score between preview and now — serve it rather than re-scoring.
-    if is_cache_fresh(ticker):
-        return await _fresh_payload(session, ticker)
+    The gate also covers the race where a concurrent request (or the preview's
+    no-news persist) populated a fresh score between preview and now — it serves
+    that rather than re-scoring."""
+    gated = await _resolve_and_gate(session, symbol)
+    if not isinstance(gated, Ticker):
+        return gated
+    ticker = gated
 
-    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
-        _over_daily_cap_log(symbol)
-        return await _stale_503(session, ticker)
-
-    raw_headlines = _stash_pop(symbol)
+    raw_headlines = _stash_pop(ticker.symbol)
     if raw_headlines is None:
         raw_headlines = await fetch_headlines(
-            symbol, ticker.asset_class, ticker.name
+            ticker.symbol, ticker.asset_class, ticker.name
         )
     if not raw_headlines:
         return await _persist_no_news(session, ticker)
@@ -448,23 +460,16 @@ async def get_ticker(
     session: AsyncSession = Depends(get_session),
 ):
     """Combined one-shot: fetch + score in a single request. Equivalent to
-    /preview followed by /score, for callers that don't stage the render."""
-    if (bad := _validate_symbol(symbol)) is not None:
-        return bad
-    symbol = symbol.upper().strip()
-    ticker = await _resolve_or_seed(session, symbol)
-    if isinstance(ticker, JSONResponse):
-        return ticker
+    /preview followed by /score, for callers that don't stage the render. The
+    gate does all cache/cap/resolve checks before any upstream work."""
+    gated = await _resolve_and_gate(session, symbol)
+    if not isinstance(gated, Ticker):
+        return gated
+    ticker = gated
 
-    if is_cache_fresh(ticker):
-        return await _fresh_payload(session, ticker)
-
-    # Checked before any news fetch so a capped request does zero upstream work.
-    if await _scorings_today(session) >= settings.SCORING_DAILY_CAP:
-        _over_daily_cap_log(symbol)
-        return await _stale_503(session, ticker)
-
-    raw_headlines = await fetch_headlines(symbol, ticker.asset_class, ticker.name)
+    raw_headlines = await fetch_headlines(
+        ticker.symbol, ticker.asset_class, ticker.name
+    )
     if not raw_headlines:
         return await _persist_no_news(session, ticker)
     return await _score_and_persist(session, ticker, raw_headlines)
