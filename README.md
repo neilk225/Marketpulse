@@ -9,19 +9,6 @@ one by its likely impact on the share price and distills them into a single, con
 reading. All wrapped in an animated dark interface with live market
 movers, watchlists, and price charts.
 
-
-## How the sentiment engine works
-
-```
-ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurrently)
-       ─▶ score each one    (OpenRouter · Claude Haiku 4.5, free model fallback)
-              · sentiment:  positive / neutral / negative
-              · score 0–1:  by forward price impact
-              · confidence: high / medium / low
-       ─▶ aggregate         (confidence-weighted mean + plain-English summary)
-       ─▶ cache             (re-score at most hourly, only when a ticker is opened)
-```
-
 ## Tech stack
 
 | Layer | Stack |
