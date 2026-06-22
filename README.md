@@ -2,25 +2,12 @@
 
 **News-driven sentiment analysis for stocks, crypto, and commodities.**
 
-![MarketPulse dashboard](home.png)
+![MarketPulse dashboard](preview.png)
 
 MarketPulse reads the latest headlines for any ticker, uses a sentiment pipeline to score each
 one by its likely impact on the share price and distills them into a single, confidence-weighted
 reading. All wrapped in an animated dark interface with live market
 movers, watchlists, and price charts.
-
-
-## How the sentiment engine works
-
-```
-ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurrently)
-       ─▶ score each one    (OpenRouter · Claude Haiku 4.5, free model fallback)
-              · sentiment:  positive / neutral / negative
-              · score 0–1:  by forward price impact
-              · confidence: high / medium / low
-       ─▶ aggregate         (confidence-weighted mean + plain-English summary)
-       ─▶ cache             (re-score at most hourly, only when a ticker is opened)
-```
 
 ## Tech stack
 
@@ -32,4 +19,4 @@ ticker ─▶ fetch headlines  (Finnhub + Yahoo/Google RSS, all sources concurre
 | **Data** | Finnhub, Financial Modeling Prep, CoinGecko, TradingView charts |
 | **Infra** | Railway (API + Postgres), Vercel (frontend) |
 
-<sub>Built by Neil Khetia</sub>
+<sub>Built by Neil K.</sub>
