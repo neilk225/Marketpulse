@@ -2,7 +2,7 @@
 
 **News-driven sentiment analysis for stocks, crypto, and commodities.**
 
-![MarketPulse dashboard](home.png)
+![MarketPulse dashboard](preview.png)
 
 MarketPulse reads the latest headlines for any ticker, uses a sentiment pipeline to score each
 one by its likely impact on the share price and distills them into a single, confidence-weighted
