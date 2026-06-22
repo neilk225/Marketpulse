@@ -16,7 +16,7 @@ const geistMono = localFont({
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://marketpulse.fyi";
-const TITLE = "MarketPulse — Financial Sentiment Dashboard";
+const TITLE = "MarketPulse: A financial sentiment dashboard";
 const DESCRIPTION =
   "News-driven sentiment analysis for stocks, crypto, and commodities.";
 const OG_IMAGE = {

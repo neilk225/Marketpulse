@@ -68,17 +68,6 @@ export async function GET(request: Request) {
         >
           {description}
         </div>
-        <div
-          style={{
-            position: "absolute",
-            bottom: "56px",
-            fontSize: 26,
-            color: "#5a606b",
-            letterSpacing: "0.05em",
-          }}
-        >
-          marketpulse.fyi
-        </div>
       </div>
     ),
     { width: 1200, height: 630, fonts: fonts.length ? fonts : undefined },
