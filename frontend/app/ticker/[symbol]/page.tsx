@@ -128,17 +128,21 @@ export default function TickerPage({
             aria-label="MarketPulse home"
             className="group flex items-center gap-2"
           >
-            <PulseMark size={76} animate={false} />
-            <span className="text-5xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
+            <PulseMark
+              size={76}
+              animate={false}
+              className="h-12 w-12 sm:h-[76px] sm:w-[76px]"
+            />
+            <span className="text-3xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink sm:text-5xl">
               MarketPulse
             </span>
           </Link>
-          <p className="mt-4 max-w-xs text-[10px] leading-relaxed text-ink-faint">
+          <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-ink-faint sm:mt-3">
             Sentiment reflects regular-hours price action only — pre- and
             after-hours moves aren&apos;t factored in.
           </p>
         </div>
-        <div className="sm:ml-auto sm:w-80">
+        <div className="mt-4 sm:ml-auto sm:mt-0 sm:w-80">
           <SearchBar />
           <RecentTickers exclude={symbol} align="right" />
         </div>
