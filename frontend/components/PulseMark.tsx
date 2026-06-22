@@ -11,17 +11,26 @@ const DOT = { cx: 27, cy: 9, r: 2.4 };
 
 /**
  * The MarketPulse mark, animated: the line draws on, the green peak dot pops in,
- * then it keeps a slow live "ping" — a steady pulse on the latest reading. Falls
- * back to the static mark when the user asks for reduced motion.
+ * then it keeps a slow live "ping" — a steady pulse on the latest reading.
+ *
+ * `animate` (default true) gates only the one-time INTRO — the line drawing on
+ * and the dot popping in. Pass `animate={false}` (ticker-page header) so the
+ * line isn't redrawn on every ticker→ticker navigation; the intro is reserved
+ * for the home page. The live ping keeps pulsing either way. All motion is
+ * suppressed under reduced motion.
  */
 export default function PulseMark({
   size = 56,
   className,
+  animate = true,
 }: {
   size?: number;
   className?: string;
+  animate?: boolean;
 }) {
   const reduce = useReducedMotion() ?? false;
+  const intro = !reduce && animate; // draw the line + pop the dot (home only)
+  const showPing = !reduce; // continuous pulse — runs on ticker pages too
   const dotCenter = { transformBox: "fill-box", transformOrigin: "center" } as const;
 
   return (
@@ -42,7 +51,7 @@ export default function PulseMark({
         strokeWidth={2.4}
         strokeLinecap="round"
         strokeLinejoin="round"
-        initial={reduce ? false : { pathLength: 0 }}
+        initial={intro ? { pathLength: 0 } : false}
         animate={{ pathLength: 1 }}
         transition={{ duration: 0.9, ease: EASE_IN_OUT }}
       />
@@ -51,7 +60,7 @@ export default function PulseMark({
           on a loop (Tailwind animate-ping style). Filled, not a hollow ring, so it
           reads as a halo behind the solid dot rather than a detached empty circle.
           Single 2-keyframe easeOut on a pure GPU scale transform = smooth. */}
-      {!reduce && (
+      {showPing && (
         <motion.circle
           cx={DOT.cx}
           cy={DOT.cy}
@@ -64,7 +73,9 @@ export default function PulseMark({
             ease: "easeOut",
             repeat: Infinity,
             repeatDelay: 0.25,
-            delay: 1.1,
+            // Wait for the intro draw to finish on the home page; start almost
+            // right away when there's no intro (ticker pages).
+            delay: intro ? 1.1 : 0.3,
           }}
           style={dotCenter}
         />
@@ -76,9 +87,9 @@ export default function PulseMark({
         cy={DOT.cy}
         r={DOT.r}
         fill="#10b981"
-        initial={reduce ? false : { scale: 0, opacity: 0 }}
+        initial={intro ? { scale: 0, opacity: 0 } : false}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.3, ease: EASE_OUT, delay: reduce ? 0 : 0.9 }}
+        transition={{ duration: 0.3, ease: EASE_OUT, delay: intro ? 0.9 : 0 }}
         style={dotCenter}
       />
     </svg>

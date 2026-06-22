@@ -5,8 +5,8 @@ from datetime import datetime, UTC
 
 from models import Ticker
 
-CACHE_TTL_SECONDS = 3600  # 1 hour — re-score at most hourly, and only on visit
-                          # (lazy refresh; no background cron, no idle LLM cost)
+CACHE_TTL_SECONDS = 600  # 10 minutes — re-score at most every 10 min, and only on
+                         # visit (lazy refresh; no background cron, no idle LLM cost)
 
 
 def is_cache_fresh(ticker: Ticker) -> bool:

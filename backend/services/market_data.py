@@ -195,6 +195,64 @@ async def fetch_crypto_movers() -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Live quote for the sentiment prompt
+# --------------------------------------------------------------------------- #
+async def fetch_quote(symbol: str, asset_class: str) -> dict | None:
+    """Latest price snapshot fed into the sentiment prompt so the model can
+    reconcile headline tone against the market's actual reaction (e.g. broadly
+    bullish headlines under a -60% day). Stocks/commodities use Finnhub /quote
+    (regular-session price + today's move — extended hours is a paid feature);
+    crypto uses CoinGecko's 24h figures. Best-effort: returns None on any failure
+    and scoring just proceeds without the price context."""
+    try:
+        client = get_client()
+        if asset_class == "crypto":
+            headers = {}
+            if settings.COINGECKO_API_KEY:
+                headers["x-cg-demo-api-key"] = settings.COINGECKO_API_KEY
+            r = await client.get(
+                COINGECKO_MARKETS,
+                params={"vs_currency": "usd", "symbols": symbol.lower()},
+                headers=headers,
+                timeout=8.0,
+            )
+            r.raise_for_status()
+            arr = r.json()
+            if not arr or arr[0].get("current_price") is None:
+                return None
+            c = arr[0]
+            return {
+                "price": c.get("current_price"),
+                "change_pct": c.get("price_change_percentage_24h"),
+                "day_high": c.get("high_24h"),
+                "day_low": c.get("low_24h"),
+                "prev_close": None,
+                "window": "24h",
+            }
+        # stock / commodity -> Finnhub quote (c=current, dp=%chg, h/l=day, pc=prev)
+        r = await client.get(
+            f"{FINNHUB_BASE}/quote",
+            params={"symbol": symbol, "token": settings.FINNHUB_API_KEY},
+            timeout=8.0,
+        )
+        r.raise_for_status()
+        q = r.json()
+        if not q or not q.get("c"):
+            return None
+        return {
+            "price": q.get("c"),
+            "change_pct": q.get("dp"),
+            "day_high": q.get("h"),
+            "day_low": q.get("l"),
+            "prev_close": q.get("pc"),
+            "window": "today",
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("quote fetch failed for %s: %s", symbol, exc)
+        return None
+
+
+# --------------------------------------------------------------------------- #
 # On-demand symbol resolution + live search (Finnhub)
 # --------------------------------------------------------------------------- #
 # Finnhub free tier is US equities/ETFs; resolved/searched symbols are surfaced
