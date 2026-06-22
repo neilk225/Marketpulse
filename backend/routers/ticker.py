@@ -354,12 +354,17 @@ async def _score_and_persist(
     # headline tone (best-effort — None just omits the price block from the prompt).
     quote = await fetch_quote(ticker.symbol, ticker.asset_class)
     try:
-        scored, model_used, summary = await score_headlines(
+        scored, model_used, summary, overall = await score_headlines(
             raw_headlines, ticker.symbol, ticker.name, ticker.asset_class, quote
         )
     except SentimentUnavailable:
         return await _stale_503(session, ticker)
     aggregate = compute_aggregate(scored)
+    # The model's holistic read (headlines + live price) drives the gauge so it
+    # stays congruent with the analysis; the per-headline % breakdown is left as
+    # the headline-only distribution. Falls back to the computed mean if absent.
+    if overall is not None:
+        aggregate["score"] = round(overall, 4)
     score, headlines = await _persist(
         session, ticker, aggregate, model_used, scored, raw_headlines, summary
     )
