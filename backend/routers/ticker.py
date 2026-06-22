@@ -35,7 +35,7 @@ from config import settings
 from models import Headline, SentimentScore, Ticker, get_session
 from services.cache import is_cache_fresh
 from services.dates import iso, parse_published
-from services.market_data import resolve_symbol
+from services.market_data import fetch_quote, resolve_symbol
 from services.news import fetch_headlines
 from services.sentiment import (
     SentimentUnavailable,
@@ -350,9 +350,12 @@ async def _score_and_persist(
 ) -> dict | JSONResponse:
     """Run the LLM on already-fetched headlines, persist, return the payload.
     Falls back to the last stored score (stale 503) if scoring is unavailable."""
+    # Live price snapshot so the model can weigh the market's reaction against the
+    # headline tone (best-effort — None just omits the price block from the prompt).
+    quote = await fetch_quote(ticker.symbol, ticker.asset_class)
     try:
         scored, model_used, summary = await score_headlines(
-            raw_headlines, ticker.symbol, ticker.name, ticker.asset_class
+            raw_headlines, ticker.symbol, ticker.name, ticker.asset_class, quote
         )
     except SentimentUnavailable:
         return await _stale_503(session, ticker)

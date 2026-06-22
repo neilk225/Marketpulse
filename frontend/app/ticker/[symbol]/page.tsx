@@ -17,6 +17,7 @@ import RecentTickers from "@/components/RecentTickers";
 import SearchBar from "@/components/SearchBar";
 import SentimentBreakdown from "@/components/SentimentBreakdown";
 import SentimentGauge from "@/components/SentimentGauge";
+import StreamingText from "@/components/StreamingText";
 import StaleBadge from "@/components/StaleBadge";
 import TopMovers from "@/components/TopMovers";
 import Watchlist from "@/components/Watchlist";
@@ -121,16 +122,22 @@ export default function TickerPage({
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:py-10">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start">
-        <Link
-          href="/"
-          aria-label="MarketPulse home"
-          className="group flex shrink-0 items-center gap-2 pt-2"
-        >
-          <PulseMark size={56} />
-          <span className="text-3xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
-            MarketPulse
-          </span>
-        </Link>
+        <div className="shrink-0">
+          <Link
+            href="/"
+            aria-label="MarketPulse home"
+            className="group flex items-center gap-2"
+          >
+            <PulseMark size={76} animate={false} />
+            <span className="text-5xl font-semibold tracking-tight text-ink-muted transition-colors group-hover:text-ink">
+              MarketPulse
+            </span>
+          </Link>
+          <p className="mt-4 max-w-xs text-[10px] leading-relaxed text-ink-faint">
+            Sentiment reflects regular-hours price action only — pre- and
+            after-hours moves aren&apos;t factored in.
+          </p>
+        </div>
         <div className="sm:ml-auto sm:w-80">
           <SearchBar />
           <RecentTickers exclude={symbol} align="right" />
@@ -200,10 +207,12 @@ export default function TickerPage({
                   bodyClassName="flex flex-1 flex-col items-center justify-center p-6"
                 >
                   {data.sentiment ? (
-                    <SentimentGauge
-                      score={data.sentiment.score}
-                      headlineCount={data.sentiment.headline_count}
-                    />
+                    <Reveal>
+                      <SentimentGauge
+                        score={data.sentiment.score}
+                        headlineCount={data.sentiment.headline_count}
+                      />
+                    </Reveal>
                   ) : scoring ? (
                     <div className="flex flex-col items-center gap-4 py-2">
                       <Skeleton className="h-[200px] w-[200px] rounded-full" />
@@ -226,9 +235,12 @@ export default function TickerPage({
                         <Skeleton className="h-4 w-[78%]" />
                       </div>
                     ) : data.sentiment?.summary ? (
-                      <p className="text-sm leading-relaxed text-ink">
-                        {data.sentiment.summary}
-                      </p>
+                      <Reveal delay={0.12}>
+                        <StreamingText
+                          text={data.sentiment.summary}
+                          className="text-sm leading-relaxed text-ink"
+                        />
+                      </Reveal>
                     ) : (
                       <p className="text-sm text-ink-muted">
                         {data.sentiment && data.sentiment.headline_count > 0
@@ -257,12 +269,14 @@ export default function TickerPage({
                         </div>
                       </div>
                     ) : data.sentiment && data.sentiment.headline_count > 0 ? (
-                      <SentimentBreakdown
-                        positivePct={data.sentiment.positive_pct}
-                        negativePct={data.sentiment.negative_pct}
-                        neutralPct={data.sentiment.neutral_pct}
-                        total={data.sentiment.headline_count}
-                      />
+                      <Reveal delay={0.28}>
+                        <SentimentBreakdown
+                          positivePct={data.sentiment.positive_pct}
+                          negativePct={data.sentiment.negative_pct}
+                          neutralPct={data.sentiment.neutral_pct}
+                          total={data.sentiment.headline_count}
+                        />
+                      </Reveal>
                     ) : (
                       <p className="py-2 text-sm text-ink-muted">
                         No breakdown — not enough recent news.

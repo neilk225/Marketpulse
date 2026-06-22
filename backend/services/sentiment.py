@@ -63,12 +63,45 @@ USER_PROMPT = """Analyze sentiment for {symbol} ({asset_class}) — {name}:
 {numbered_headlines}"""
 
 
+def _price_context(quote: dict | None) -> str:
+    """Render the live quote into a prompt block that tells the model to weigh
+    the market's actual reaction against the headline tone. Empty string when no
+    quote is available (the prompt is then headline-only, as before)."""
+    if not quote or quote.get("price") is None:
+        return ""
+    window = quote.get("window", "today")
+    lines = [f"- Current price: {quote['price']}"]
+    chg = quote.get("change_pct")
+    if chg is not None:
+        lines.append(f"- Change ({window}): {chg:+.2f}%")
+    hi, lo = quote.get("day_high"), quote.get("day_low")
+    if hi is not None and lo is not None:
+        lines.append(f"- Range ({window}): {lo} - {hi}")
+    if quote.get("prev_close") is not None:
+        lines.append(f"- Previous close: {quote['prev_close']}")
+    return (
+        "\n\nLIVE PRICE CONTEXT — reconcile the headlines against the market's "
+        "actual reaction:\n"
+        + "\n".join(lines)
+        + "\nIf the price is moving sharply AGAINST the headline tone (e.g. broadly "
+        "bullish headlines while the stock is down hard, or vice-versa), the market "
+        "is pricing in something the headlines understate, contradict, or already "
+        "discount — temper the aggregate toward the price action, lower confidence "
+        "on the contradicted headlines, and name the divergence explicitly in the "
+        "summary. Treat a large adverse move as a strong signal, not noise."
+    )
+
+
 class SentimentUnavailable(Exception):
     """Raised when OpenRouter returns non-200 or the response can't be parsed."""
 
 
 async def score_headlines(
-    headlines: list[dict], symbol: str, name: str, asset_class: str
+    headlines: list[dict],
+    symbol: str,
+    name: str,
+    asset_class: str,
+    quote: dict | None = None,
 ) -> tuple[list[dict], str, str]:
     """Return (scored_headlines, model_used, summary).
 
@@ -94,7 +127,8 @@ async def score_headlines(
                     asset_class=asset_class,
                     name=name,
                     numbered_headlines=numbered,
-                ),
+                )
+                + _price_context(quote),
             },
         ],
         # Headroom for 30 scored headlines plus the summary. Each headline object

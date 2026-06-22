@@ -1,9 +1,9 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
 
-import { EASE_IN_OUT, EASE_OUT, formatScore, scoreHex, scoreLabel } from "@/lib/utils";
+import { useCountUp } from "@/lib/useCountUp";
+import { EASE_OUT, formatScore, scoreHex, scoreLabel } from "@/lib/utils";
 
 interface Props {
   score: number;
@@ -13,9 +13,8 @@ interface Props {
 
 const START_ANGLE = 135; // bottom-left
 const SWEEP = 270; // gap at the bottom
-// Seen on every ticker open — kept snappy. Longer felt sluggish for a value the
-// user is waiting on.
-const SWEEP_MS = 600;
+// The fill takes its time so it reads as a gauge filling, not a value snapping in.
+const FILL_MS = 900;
 
 function polar(cx: number, cy: number, r: number, deg: number) {
   const a = (deg * Math.PI) / 180;
@@ -29,54 +28,28 @@ function arcPath(cx: number, cy: number, r: number, from: number, to: number) {
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${large} 1 ${end.x} ${end.y}`;
 }
 
-/** Eases a value from 0 → target once on mount (and whenever target changes).
- *  Drives both the dot sweep and the number count-up off one source so they
- *  stay in lockstep. Skips straight to target when motion is reduced. */
-function useCountUp(target: number, duration = SWEEP_MS, enabled = true) {
-  const [value, setValue] = useState(enabled ? 0 : target);
-  useEffect(() => {
-    if (!enabled) {
-      setValue(target);
-      return;
-    }
-    let raf = 0;
-    let startTs = 0;
-    const tick = (now: number) => {
-      if (!startTs) startTs = now;
-      const t = Math.min(1, (now - startTs) / duration);
-      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-      setValue(target * eased);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration, enabled]);
-  return value;
-}
-
 /**
- * Signature element: sentiment as a circular arc gauge. On load the spectrum
- * track draws on, the marker dot sweeps from the start of the arc to the score,
- * and the value counts up — all eased together. The center shows the value +
- * 5-band label, both tinted to the score's band. Not a number, not a bar chart.
+ * Signature element: sentiment as a circular fill gauge. A single arc in the
+ * score's band color grows from the start of the track to the score position,
+ * the marker dot rides its leading tip, and the value counts up — all driven off
+ * one eased value (`display`) so the arc, dot, and number stay perfectly locked.
+ * One meaningful accent (the band color), no decorative spectrum.
  */
-export default function SentimentGauge({
-  score,
-  headlineCount,
-  size = 240,
-}: Props) {
+export default function SentimentGauge({ score, headlineCount, size = 240 }: Props) {
   const reduce = useReducedMotion() ?? false;
   const clamped = Math.min(1, Math.max(0, score));
-  const display = useCountUp(clamped, SWEEP_MS, !reduce);
+  const display = useCountUp(clamped, { duration: FILL_MS, enabled: !reduce });
 
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 22;
   const stroke = 16;
 
-  const track = arcPath(cx, cy, r, START_ANGLE, START_ANGLE + SWEEP);
-  const dot = polar(cx, cy, r, START_ANGLE + display * SWEEP);
-  const color = scoreHex(clamped); // final-band color (stable through the sweep)
+  const trackFull = arcPath(cx, cy, r, START_ANGLE, START_ANGLE + SWEEP);
+  const endAngle = START_ANGLE + display * SWEEP;
+  const fill = arcPath(cx, cy, r, START_ANGLE, endAngle);
+  const dot = polar(cx, cy, r, endAngle);
+  const color = scoreHex(clamped); // final-band color, stable through the fill
 
   return (
     <div
@@ -88,38 +61,26 @@ export default function SentimentGauge({
       )}`}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <defs>
-          <linearGradient id="gaugeSpectrum" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#ef4444" />
-            <stop offset="25%" stopColor="#f97316" />
-            <stop offset="50%" stopColor="#eab308" />
-            <stop offset="75%" stopColor="#84cc16" />
-            <stop offset="100%" stopColor="#22c55e" />
-          </linearGradient>
-        </defs>
-
-        {/* under-track for unlit contrast */}
+        {/* empty track */}
         <path
-          d={track}
+          d={trackFull}
           fill="none"
           stroke="#1f2329"
-          strokeWidth={stroke + 4}
-          strokeLinecap="round"
-        />
-        {/* spectrum track — draws on from the start of the arc */}
-        <motion.path
-          d={track}
-          fill="none"
-          stroke="url(#gaugeSpectrum)"
           strokeWidth={stroke}
           strokeLinecap="round"
-          initial={reduce ? false : { pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: SWEEP_MS / 1000, ease: EASE_IN_OUT }}
         />
-
-        {/* marker dot — rides the arc to the score as the value counts up */}
-        <circle cx={dot.x} cy={dot.y} r={9} fill="#0a0b0d" />
+        {/* fill arc — grows to the score in the band color */}
+        {display > 0.004 && (
+          <path
+            d={fill}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+          />
+        )}
+        {/* marker dot rides the leading tip of the fill */}
+        <circle cx={dot.x} cy={dot.y} r={10} fill="#0a0b0d" />
         <circle
           cx={dot.x}
           cy={dot.y}
@@ -145,7 +106,7 @@ export default function SentimentGauge({
           transition={{
             duration: 0.3,
             ease: EASE_OUT,
-            delay: reduce ? 0 : SWEEP_MS / 1000 - 0.15,
+            delay: reduce ? 0 : FILL_MS / 1000 - 0.15,
           }}
         >
           {scoreLabel(clamped)}
