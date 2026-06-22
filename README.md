@@ -19,4 +19,4 @@ movers, watchlists, and price charts.
 | **Data** | Finnhub, Financial Modeling Prep, CoinGecko, TradingView charts |
 | **Infra** | Railway (API + Postgres), Vercel (frontend) |
 
-<sub>Built by Neil Khetia</sub>
+<sub>Built by Neil K.</sub>
