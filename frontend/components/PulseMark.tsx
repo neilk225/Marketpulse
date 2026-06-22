@@ -14,7 +14,13 @@ const DOT = { cx: 27, cy: 9, r: 2.4 };
  * then it keeps a slow live "ping" — a steady pulse on the latest reading. Falls
  * back to the static mark when the user asks for reduced motion.
  */
-export default function PulseMark({ size = 56 }: { size?: number }) {
+export default function PulseMark({
+  size = 56,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
   const reduce = useReducedMotion() ?? false;
   const dotCenter = { transformBox: "fill-box", transformOrigin: "center" } as const;
 
@@ -25,6 +31,7 @@ export default function PulseMark({ size = 56 }: { size?: number }) {
       viewBox="0 0 32 32"
       fill="none"
       aria-hidden
+      className={className}
       // The live ping expands past the peak dot near the edge — let it draw
       // beyond the 32×32 box instead of being clipped to it.
       style={{ overflow: "visible" }}
