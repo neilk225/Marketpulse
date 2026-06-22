@@ -9,9 +9,6 @@ Served as two stages so the page can paint before the (slow) LLM call finishes:
       return the scored payload (gauge / analysis / breakdown + per-headline
       sentiment). Reuses preview's fetched headlines via a short-TTL stash.
 
-  GET /api/ticker/{symbol}          — the combined one-shot (both stages in one
-      request); kept for non-progressive callers.
-
 Shared flow within a stage:
   1. Validate symbol format        -> 422 on bad format
   2. Look up / resolve+seed ticker -> 404 if unresolvable
@@ -449,27 +446,6 @@ async def get_ticker_score(
         raw_headlines = await fetch_headlines(
             ticker.symbol, ticker.asset_class, ticker.name
         )
-    if not raw_headlines:
-        return await _persist_no_news(session, ticker)
-    return await _score_and_persist(session, ticker, raw_headlines)
-
-
-@router.get("/ticker/{symbol}")
-async def get_ticker(
-    symbol: str,
-    session: AsyncSession = Depends(get_session),
-):
-    """Combined one-shot: fetch + score in a single request. Equivalent to
-    /preview followed by /score, for callers that don't stage the render. The
-    gate does all cache/cap/resolve checks before any upstream work."""
-    gated = await _resolve_and_gate(session, symbol)
-    if not isinstance(gated, Ticker):
-        return gated
-    ticker = gated
-
-    raw_headlines = await fetch_headlines(
-        ticker.symbol, ticker.asset_class, ticker.name
-    )
     if not raw_headlines:
         return await _persist_no_news(session, ticker)
     return await _score_and_persist(session, ticker, raw_headlines)
