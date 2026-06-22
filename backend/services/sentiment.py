@@ -34,8 +34,17 @@ mention {symbol} is near-neutral and low-confidence because it is not specific t
 the company.
 
 Return ONLY a valid JSON object — no preamble, no markdown fences, no text
-outside the JSON. It must have exactly these two fields:
+outside the JSON. It must have exactly these three fields:
 
+  - "overall_score": float 0.0-1.0 — the single NET forward-looking read for an
+      investor RIGHT NOW, on the same scale as the per-headline scores below
+      (0.00 catastrophic, 0.25 clearly bearish, 0.50 neutral, 0.75 clearly
+      bullish, 1.00 major bullish catalyst). This is a holistic judgment that
+      INTEGRATES the headlines AND the live price action below (when provided).
+      When the price is moving sharply against the headline tone, weight the
+      price action so this number reflects the market's actual read — not just
+      the headlines. It MUST agree in direction with your summary (a bearish
+      summary means a score below 0.50, a bullish one above).
   - "summary": 3-4 sentences for a retail investor. Lead with the NET direction
       (bullish / bearish / mixed) and name the 1-2 concrete drivers (earnings,
       regulation, product launches, guidance, etc.). Close with one forward-
@@ -102,12 +111,14 @@ async def score_headlines(
     name: str,
     asset_class: str,
     quote: dict | None = None,
-) -> tuple[list[dict], str, str]:
-    """Return (scored_headlines, model_used, summary).
+) -> tuple[list[dict], str, str, float | None]:
+    """Return (scored_headlines, model_used, summary, overall_score).
 
     ``scored_headlines`` is the per-headline array; ``model_used`` is the model
     OpenRouter actually served (after fallback routing); ``summary`` is the
-    model's plain-English explanation of the aggregate sentiment.
+    model's plain-English explanation. ``overall_score`` is the model's holistic
+    0-1 read (headlines + live price), or None if it didn't return one — the
+    caller uses it for the headline aggregate so the gauge tracks the analysis.
     """
     numbered = "\n".join(f"{i+1}. {h['title']}" for i, h in enumerate(headlines))
     payload = {
@@ -170,6 +181,7 @@ async def score_headlines(
         if not isinstance(scored, list):
             raise ValueError("model response missing 'headlines' array")
         summary = str(parsed.get("summary") or "").strip()
+        overall = _clamp_score(parsed.get("overall_score"))
     except Exception as exc:  # noqa: BLE001
         # Most failures are truncation (max_tokens) leaving the JSON unterminated.
         # Salvage whatever complete headline objects we can rather than 503-ing.
@@ -185,8 +197,17 @@ async def score_headlines(
         )
         scored = salvaged["headlines"]
         summary = salvaged["summary"]
+        overall = salvaged["overall_score"]
 
-    return _sanitize(scored), model_used, summary
+    return _sanitize(scored), model_used, summary, overall
+
+
+def _clamp_score(value) -> float | None:
+    """Coerce the model's overall_score to a float in [0, 1]; None if unusable."""
+    try:
+        return min(1.0, max(0.0, float(value)))
+    except (TypeError, ValueError):
+        return None
 
 
 def _salvage(raw: str) -> dict | None:
@@ -210,7 +231,9 @@ def _salvage(raw: str) -> dict | None:
     sm = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
     if sm:
         summary = sm.group(1).strip()
-    return {"headlines": headlines, "summary": summary}
+    om = re.search(r'"overall_score"\s*:\s*([0-9]*\.?[0-9]+)', raw)
+    overall = _clamp_score(om.group(1)) if om else None
+    return {"headlines": headlines, "summary": summary, "overall_score": overall}
 
 
 _VALID_SENTIMENTS = {"positive", "negative", "neutral"}

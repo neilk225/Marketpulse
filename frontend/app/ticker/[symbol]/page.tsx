@@ -138,8 +138,7 @@ export default function TickerPage({
             </span>
           </Link>
           <p className="mt-1 max-w-xs text-[10px] leading-relaxed text-ink-faint sm:mt-3">
-            Sentiment reflects regular-hours price action only — pre- and
-            after-hours moves aren&apos;t factored in.
+            Sentiment reflects regular-hours price action only
           </p>
         </div>
         <div className="mt-4 sm:ml-auto sm:mt-0 sm:w-80">
@@ -292,7 +291,7 @@ export default function TickerPage({
 
               {/* Price chart (TradingView widget) */}
               <Reveal delay={0.08}>
-                <Panel title="Price" bodyClassName="p-0">
+                <Panel title="Chart" bodyClassName="p-0">
                   <PriceChart symbol={data.symbol} assetClass={data.asset_class} />
                 </Panel>
               </Reveal>
